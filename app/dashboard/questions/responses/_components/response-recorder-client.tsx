@@ -58,7 +58,7 @@ export default function ResponseRecorderClient({ caseId, caseName, questionId, j
   const [responses, setResponses] = useState<Map<string, Map<string, ResponseData>>>(new Map());
   const [textInput, setTextInput] = useState('');
   const [scaledInput, setScaledInput] = useState<number | null>(null);
-  const [boolInput, setBoolInput] = useState<boolean | null>(null);
+  const [, setBoolInput] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [struckJurors, setStruckJurors] = useState<Set<string>>(new Set());
