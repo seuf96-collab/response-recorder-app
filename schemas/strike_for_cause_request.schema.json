@@ -1,0 +1,129 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "strike_for_cause_request",
+  "title": "Strike For Cause Analysis Request",
+  "type": "object",
+  "required": ["jurisdiction", "matter", "stage", "transcript", "target_juror"],
+  "additionalProperties": false,
+  "properties": {
+    "jurisdiction": {
+      "type": "object",
+      "required": ["state"],
+      "additionalProperties": false,
+      "properties": {
+        "state": { "type": "string", "const": "TX" },
+        "county": { "type": "string" },
+        "court": { "type": "string" },
+        "judge_profile": { "type": "string" }
+      }
+    },
+    "matter": {
+      "type": "object",
+      "required": ["case_type"],
+      "additionalProperties": false,
+      "properties": {
+        "case_type": { "type": "string" },
+        "offense_level": {
+          "type": "string",
+          "enum": ["misdemeanor_a", "misdemeanor_b", "misdemeanor_c", "state_jail_felony", "third_degree_felony", "second_degree_felony", "first_degree_felony", "capital_felony"]
+        },
+        "punishment_range_text": { "type": "string" },
+        "key_legal_rules_in_play": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "prohibited_case_facts": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "stage": {
+      "type": "string",
+      "enum": ["group_screen", "individual_followup", "individual_lock_in", "cause_motion", "denied_cause_preservation"]
+    },
+    "transcript": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["turn_id", "speaker_role", "content"],
+        "additionalProperties": false,
+        "properties": {
+          "turn_id": { "type": "string" },
+          "speaker_role": {
+            "type": "string",
+            "enum": ["prosecutor", "defense_counsel", "judge", "juror", "observer"]
+          },
+          "juror_ref": { "type": "string" },
+          "content": { "type": "string" },
+          "timestamp": { "type": "string" },
+          "source": { "type": "string" },
+          "nonverbal": { "type": "string" },
+          "confidence": {
+            "type": "string",
+            "enum": ["verbatim", "paraphrase", "summary"]
+          }
+        }
+      }
+    },
+    "target_juror": {
+      "type": "object",
+      "required": ["juror_ref"],
+      "additionalProperties": false,
+      "properties": {
+        "juror_ref": { "type": "string" },
+        "panel_position": { "type": "integer" }
+      }
+    },
+    "analysis_focus": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "full_range_punishment",
+          "probation_refusal",
+          "anti_police_bias",
+          "pro_police_bias",
+          "defendant_silence_bias",
+          "burden_shifting",
+          "evidence_type_requirement",
+          "formed_conclusion",
+          "victim_credibility",
+          "witness_credibility_absolute",
+          "circumstantial_evidence_bias",
+          "prior_relationship_bias",
+          "penalty_phase_bias",
+          "general_fairness",
+          "hardship"
+        ]
+      }
+    },
+    "output_preferences": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "question_count": { "type": "integer", "minimum": 1, "maximum": 20, "default": 8 },
+        "include_alternatives": { "type": "boolean", "default": false },
+        "include_motion_language": { "type": "boolean", "default": true },
+        "include_preservation_script": { "type": "boolean", "default": true },
+        "include_panel_safe_version": { "type": "boolean", "default": false },
+        "response_format": { "type": "string", "const": "structured_json" },
+        "verbosity": { "type": "string", "enum": ["concise", "standard", "detailed"], "default": "standard" }
+      }
+    },
+    "privacy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "redact_juror_identifiers": { "type": "boolean", "default": true },
+        "allow_storage_for_training": { "type": "boolean", "const": false },
+        "retention_days": { "type": "integer", "minimum": 0, "maximum": 365 }
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  }
+}

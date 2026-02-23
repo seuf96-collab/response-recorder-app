@@ -1,0 +1,215 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "strike_for_cause_response",
+  "title": "Strike For Cause Analysis Response",
+  "type": "object",
+  "required": ["request_id", "model", "version", "jurisdiction", "summary", "analyses", "preservation", "warnings"],
+  "additionalProperties": false,
+  "properties": {
+    "request_id": { "type": "string" },
+    "model": { "type": "string" },
+    "version": { "type": "string", "const": "1.0.0" },
+    "jurisdiction": { "type": "string" },
+    "summary": {
+      "type": "object",
+      "required": ["likely_cause_candidates", "likely_peremptory_only", "immediate_actions", "notes"],
+      "additionalProperties": false,
+      "properties": {
+        "likely_cause_candidates": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "likely_peremptory_only": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "immediate_actions": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "notes": { "type": "string" }
+      }
+    },
+    "analyses": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["issue_id", "juror_ref", "issue_type", "status", "evidence_summary", "key_admissions", "legal_hooks", "ambiguity_flags", "question_plan", "confidence", "confidence_reasons", "source_turn_refs"],
+        "additionalProperties": false,
+        "properties": {
+          "issue_id": { "type": "string" },
+          "juror_ref": { "type": "string" },
+          "issue_type": { "type": "string" },
+          "status": {
+            "type": "string",
+            "enum": [
+              "strong_cause_candidate",
+              "possible_cause_needs_lock_in",
+              "insufficient_for_cause_peremptory_only",
+              "hardship_excuse_path",
+              "disqualification_admin_path"
+            ]
+          },
+          "evidence_summary": { "type": "string" },
+          "key_admissions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["admission", "source_turn_id"],
+              "additionalProperties": false,
+              "properties": {
+                "admission": { "type": "string" },
+                "source_turn_id": { "type": "string" }
+              }
+            }
+          },
+          "legal_hooks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["code", "rationale"],
+              "additionalProperties": false,
+              "properties": {
+                "code": { "type": "string" },
+                "rationale": { "type": "string" }
+              }
+            }
+          },
+          "ambiguity_flags": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "question_plan": {
+            "type": "object",
+            "required": ["sequence_type", "purpose", "questions"],
+            "additionalProperties": false,
+            "properties": {
+              "sequence_type": { "type": "string" },
+              "purpose": { "type": "string" },
+              "questions": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["step", "text", "style", "expected_signal"],
+                  "additionalProperties": false,
+                  "properties": {
+                    "step": {
+                      "type": "string",
+                      "enum": ["normalize", "define_rule", "confirm_understanding", "elicit_conflict", "lock_in_override", "binary_clarifier", "cause_motion_line", "preservation_line"]
+                    },
+                    "text": { "type": "string" },
+                    "style": {
+                      "type": "string",
+                      "enum": ["panel_safe", "individual", "bench"]
+                    },
+                    "expected_signal": { "type": "string" },
+                    "if_yes": { "type": "string" },
+                    "if_no": { "type": "string" },
+                    "if_hedge": { "type": "string" }
+                  }
+                }
+              },
+              "stop_conditions": {
+                "type": "array",
+                "items": { "type": "string" }
+              },
+              "anti_commitment_check": { "type": "string" }
+            }
+          },
+          "motion_language": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "short_form": { "type": "string" },
+              "expanded_form": { "type": "string" }
+            }
+          },
+          "alternatives": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "approach": { "type": "string" },
+                "questions": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": ["step", "text"],
+                    "additionalProperties": false,
+                    "properties": {
+                      "step": { "type": "string" },
+                      "text": { "type": "string" }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "confidence": {
+            "type": "string",
+            "enum": ["HIGH", "MEDIUM", "LOW"]
+          },
+          "confidence_reasons": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "source_turn_refs": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    },
+    "preservation": {
+      "type": "object",
+      "required": ["recommended", "lines", "conditions"],
+      "additionalProperties": false,
+      "properties": {
+        "recommended": { "type": "boolean" },
+        "lines": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "conditions": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["type", "message"],
+        "additionalProperties": false,
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "commitment_question_risk",
+              "insufficient_record",
+              "hardship_not_cause",
+              "confirmatory_fairness_question",
+              "batson_risk",
+              "rehabilitation_vulnerability",
+              "missing_lock_in",
+              "nonverbal_only"
+            ]
+          },
+          "message": { "type": "string" }
+        }
+      }
+    },
+    "audit": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "input_tokens": { "type": "integer" },
+        "output_tokens": { "type": "integer" },
+        "latency_ms": { "type": "integer" },
+        "model_version": { "type": "string" }
+      }
+    }
+  }
+}

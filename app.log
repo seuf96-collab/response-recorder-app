@@ -1,0 +1,10 @@
+
+> response-recorder-app@0.1.0 start
+> next start
+
+  ▲ Next.js 14.2.35
+  - Local:        http://localhost:3012
+
+ ✓ Starting...
+ ✓ Ready in 442ms
+/c/Program Files/nodejs/npm: line 65:  9343 Killed                  "$NODE_EXE" "$NPM_CLI_JS" "$@"

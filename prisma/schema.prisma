@@ -1,0 +1,185 @@
+generator client {
+    provider = "prisma-client-js"
+}
+
+datasource db {
+    provider = "sqlite"
+    url      = env("DATABASE_URL")
+}
+
+// Authentication models
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  password      String
+  name          String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  cases         Case[]
+  
+  @@map("users")
+}
+
+// Case management
+model Case {
+  id                    String    @id @default(cuid())
+  name                  String
+  causeNumber           String?
+  defendantName         String?
+  offenseType           String?
+  date                  DateTime?
+  venireSize            Int       @default(36)
+  jurySize              Int       @default(12)
+  numAlternates         Int       @default(1)
+  stateStrikes          Int       @default(10)
+  defenseStrikes        Int       @default(10)
+  stateAltStrikes       Int       @default(1)
+  defenseAltStrikes     Int       @default(1)
+  stateStrikesUsed      Int       @default(0)
+  defenseStrikesUsed    Int       @default(0)
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  jurors                Juror[]
+  questions             Question[]
+  batsonChallenges      BatsonChallenge[]
+  forCauseStrategies    ForCauseStrategy[]
+
+  @@map("cases")
+}
+
+// Juror information
+model Juror {
+  id                String        @id @default(cuid())
+  caseId            String
+  case              Case          @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  jurorNumber       Int
+  seatNumber        Int?
+  firstName         String?
+  lastName          String?
+  age               Int?
+  gender            String?
+  occupation        String?
+  employer          String?
+  educationLevel    String?
+  maritalStatus     String?
+  numberOfChildren  Int?
+  childrenAges      String?
+  city              String?
+  zipCode           String?
+  neighborhood      String?
+  overallScore      Int?
+  attorneyRating    Int           @default(0)
+  forCause          Boolean       @default(false)
+  isStruck          Boolean       @default(false)
+  panelType         String        @default("REGULAR")
+  status            String        @default("ACTIVE")
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  notes              Note[]
+  tags               JurorTag[]
+  responses          Response[]
+  batsonChallenges   BatsonChallenge[]
+  forCauseStrategies ForCauseStrategy[]
+
+  @@map("jurors")
+}
+
+// Notes for each juror
+model Note {
+  id        String   @id @default(cuid())
+  jurorId   String
+  juror     Juror    @relation(fields: [jurorId], references: [id], onDelete: Cascade)
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("notes")
+}
+
+// Juror tags
+model JurorTag {
+  id        String   @id @default(cuid())
+  jurorId   String
+  juror     Juror    @relation(fields: [jurorId], references: [id], onDelete: Cascade)
+  tag       String
+  createdAt DateTime @default(now())
+
+  @@map("juror_tags")
+}
+
+// Questions for voir dire
+model Question {
+  id        String   @id @default(cuid())
+  caseId    String
+  case      Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  text      String
+  type      String
+  scaleMax  Int?
+  weight    Int      @default(1)
+  category  String?
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  responses Response[]
+
+  @@map("questions")
+}
+
+// Responses to questions
+model Response {
+  id        String   @id @default(cuid())
+  jurorId   String
+  juror     Juror    @relation(fields: [jurorId], references: [id], onDelete: Cascade)
+  questionId String
+  question  Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  scaledValue Int?
+  textValue String?
+  boolValue Boolean?
+  answeredAt DateTime @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("responses")
+}
+
+// Batson challenges
+model BatsonChallenge {
+  id               String   @id @default(cuid())
+  caseId           String
+  case             Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  jurorId          String
+  juror            Juror    @relation(fields: [jurorId], references: [id], onDelete: Cascade)
+  raceNeutralReasons String?
+  explanation      String?
+  comparisonJurorIds String?
+  raisedAt         DateTime @default(now())
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@map("batson_challenges")
+}
+
+// AI-generated for-cause strategy cache
+model ForCauseStrategy {
+  id              String   @id @default(cuid())
+  caseId          String
+  case            Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  jurorId         String
+  juror           Juror    @relation(fields: [jurorId], references: [id], onDelete: Cascade)
+  strategy        String   // JSON string: { priority, reasoning, questionSequences[], vulnerabilities[] }
+  outcome         String?  // "SUCCESS" | "FAILED" | "NOT_ATTEMPTED" | null
+  outcomeNotes    String?
+  generatedAt     DateTime @default(now())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([caseId, jurorId])
+  @@map("for_cause_strategies")
+}
+
+// Enum values stored as strings:
+// QuestionType: "SCALED" | "OPEN_ENDED" | "YES_NO"
+// PanelType: "REGULAR" | "ALTERNATE"
+// JurorStatus: "ACTIVE" | "STRUCK_BY_STATE" | "STRUCK_BY_DEFENSE" | "STRUCK_FOR_CAUSE" | "EXCUSED"
