@@ -162,26 +162,10 @@ function loadSystemPrompt(): string {
 // ─── Anthropic API Key Loader ─────────────────────────────────────
 
 function getAnthropicApiKey(): string {
-  let apiKey = process.env.ANTHROPIC_API_KEY;
+  const apiKey = process.env.ANTHROPIC_API_KEY;
   if (apiKey) return apiKey;
 
-  // Fallback: read from .env.local (handles Next.js env loading edge cases)
-  try {
-    const envLocalPath = path.join(process.cwd(), '.env.local');
-    if (fs.existsSync(envLocalPath)) {
-      const envContent = fs.readFileSync(envLocalPath, 'utf-8');
-      const match = envContent.match(/^ANTHROPIC_API_KEY=["']?(.+?)["']?\s*$/m);
-      if (match) {
-        apiKey = match[1];
-        process.env.ANTHROPIC_API_KEY = apiKey;
-        return apiKey;
-      }
-    }
-  } catch {
-    // ignore
-  }
-
-  throw new Error('ANTHROPIC_API_KEY not found in environment or .env.local');
+  throw new Error('ANTHROPIC_API_KEY not found in environment variables. Please set it in your Vercel project settings.');
 }
 
 // ─── Build User Message ───────────────────────────────────────────
