@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
+import { supabase } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,16 +9,13 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const question = await prisma.question.findFirst({
-      where: {
-        id: params.id,
-      },
-      include: {
-        responses: true,
-      },
-    });
+    const { data: question, error } = await supabase
+      .from('question')
+      .select('*')
+      .eq('id', params.id)
+      .single();
 
-    if (!question) {
+    if (error || !question) {
       return NextResponse.json({ error: 'Question not found' }, { status: 404 });
     }
 
@@ -37,10 +34,14 @@ export async function PATCH(
   try {
     const body = await request.json();
 
-    const updatedQuestion = await prisma.question.update({
-      where: { id: params.id },
-      data: body,
-    });
+    const { data: updatedQuestion, error } = await supabase
+      .from('question')
+      .update(body)
+      .eq('id', params.id)
+      .select()
+      .single();
+
+    if (error) throw error;
 
     return NextResponse.json({ question: updatedQuestion });
   } catch (error) {
@@ -55,9 +56,12 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    await prisma.question.delete({
-      where: { id: params.id },
-    });
+    const { error } = await supabase
+      .from('question')
+      .delete()
+      .eq('id', params.id);
+
+    if (error) throw error;
 
     return NextResponse.json({ message: 'Question deleted' });
   } catch (error) {
