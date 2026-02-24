@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
+import { supabase } from '@/lib/supabase';
 import { calculateOverallScore } from '@/lib/scoring';
 
 export const dynamic = 'force-dynamic';
@@ -12,37 +12,38 @@ export async function GET(request: NextRequest) {
     const caseId = searchParams.get('caseId');
     const questionId = searchParams.get('questionId');
 
-    let whereClause: any = {};
+    let query = supabase.from('response').select('*');
 
     if (jurorId) {
-      whereClause.jurorId = jurorId;
+      query = query.eq('jurorId', jurorId);
     }
 
     if (questionId) {
-      whereClause.questionId = questionId;
+      query = query.eq('questionId', questionId);
     }
 
     if (caseId) {
       // Get all jurors in this case
-      const jurors = await prisma.juror.findMany({
-        where: { caseId },
-        select: { id: true },
-      });
+      const { data: jurors, error: jurorError } = await supabase
+        .from('juror')
+        .select('id')
+        .eq('caseId', caseId);
 
-      whereClause.jurorId = {
-        in: jurors.map(j => j.id),
-      };
+      if (jurorError) throw jurorError;
+
+      const jurorIds = (jurors || []).map(j => j.id);
+      if (jurorIds.length > 0) {
+        query = query.in('jurorId', jurorIds);
+      } else {
+        return NextResponse.json({ responses: [] });
+      }
     }
 
-    const responses = await prisma.response.findMany({
-      where: whereClause,
-      include: {
-        question: true,
-        juror: true,
-      },
-    });
+    const { data: responses, error } = await query;
 
-    return NextResponse.json({ responses });
+    if (error) throw error;
+
+    return NextResponse.json({ responses: responses || [] });
   } catch (error) {
     console.error('Failed to fetch responses:', error);
     return NextResponse.json({ error: 'Failed to fetch responses' }, { status: 500 });
@@ -60,78 +61,100 @@ export async function POST(request: NextRequest) {
     }
 
     // Ensure juror exists (create if not found)
-    let juror = await prisma.juror.findUnique({
-      where: { id: jurorId },
-    });
+    const { data: existingJuror, error: jurorFetchError } = await supabase
+      .from('juror')
+      .select('*')
+      .eq('id', jurorId)
+      .single();
 
-    if (!juror && caseId) {
-      // Extract juror number from ID (e.g., "juror-5" -> 5)
-      const jurorNum = parseInt(jurorId.split('-')[1] || '0');
-      juror = await prisma.juror.create({
-        data: {
-          id: jurorId,
-          caseId,
-          jurorNumber: jurorNum,
-          seatNumber: jurorNum,
-        },
-      });
+    if (jurorFetchError && jurorFetchError.code !== 'PGRST116' && !existingJuror) {
+      // If caseId provided, create the juror
+      if (caseId) {
+        const jurorNum = parseInt(jurorId.split('-')[1] || '0');
+        const { error: createError } = await supabase
+          .from('juror')
+          .insert([
+            {
+              id: jurorId,
+              caseId,
+              jurorNumber: jurorNum,
+              seatNumber: jurorNum,
+            },
+          ]);
+
+        if (createError) throw createError;
+      }
     }
 
     // Check if response already exists
-    const existingResponse = await prisma.response.findFirst({
-      where: {
-        jurorId,
-        questionId,
-      },
-    });
+    const { data: existingResponse, error: fetchError } = await supabase
+      .from('response')
+      .select('*')
+      .eq('jurorId', jurorId)
+      .eq('questionId', questionId)
+      .single();
+
+    if (fetchError && fetchError.code !== 'PGRST116') {
+      throw fetchError;
+    }
 
     let response;
 
     if (existingResponse) {
       // Update existing response
-      response = await prisma.response.update({
-        where: { id: existingResponse.id },
-        data: {
+      const { data: updatedResponse, error: updateError } = await supabase
+        .from('response')
+        .update({
           scaledValue: scaledValue !== undefined ? scaledValue : existingResponse.scaledValue,
           textValue: textValue !== undefined ? textValue : existingResponse.textValue,
           boolValue: boolValue !== undefined ? boolValue : existingResponse.boolValue,
-          answeredAt: new Date(),
-        },
-        include: {
-          question: true,
-        },
-      });
+          answeredAt: new Date().toISOString(),
+        })
+        .eq('id', existingResponse.id)
+        .select()
+        .single();
+
+      if (updateError) throw updateError;
+      response = updatedResponse;
     } else {
       // Create new response
-      response = await prisma.response.create({
-        data: {
-          jurorId,
-          questionId,
-          scaledValue: scaledValue !== undefined ? scaledValue : null,
-          textValue: textValue !== undefined ? textValue : null,
-          boolValue: boolValue !== undefined ? boolValue : null,
-          answeredAt: new Date(),
-        },
-        include: {
-          question: true,
-        },
-      });
+      const { data: newResponse, error: createError } = await supabase
+        .from('response')
+        .insert([
+          {
+            jurorId,
+            questionId,
+            scaledValue: scaledValue !== undefined ? scaledValue : null,
+            textValue: textValue !== undefined ? textValue : null,
+            boolValue: boolValue !== undefined ? boolValue : null,
+            answeredAt: new Date().toISOString(),
+          },
+        ])
+        .select()
+        .single();
+
+      if (createError) throw createError;
+      response = newResponse;
     }
 
     // Update juror's overall score if this is a scaled question
     if (scaledValue !== undefined) {
-      const allResponses = await prisma.response.findMany({
-        where: { jurorId },
-        include: { question: true },
-      });
+      const { data: allResponses, error: responseFetchError } = await supabase
+        .from('response')
+        .select('*, question(*)')
+        .eq('jurorId', jurorId);
+
+      if (responseFetchError) throw responseFetchError;
 
       const overallScore = calculateOverallScore(allResponses as any);
 
       if (overallScore !== null) {
-        await prisma.juror.update({
-          where: { id: jurorId },
-          data: { overallScore: Math.round(overallScore * 10) / 10 },
-        });
+        const { error: updateScoreError } = await supabase
+          .from('juror')
+          .update({ overallScore: Math.round(overallScore * 10) / 10 })
+          .eq('id', jurorId);
+
+        if (updateScoreError) throw updateScoreError;
       }
     }
 
@@ -152,41 +175,51 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    // Find and delete the response
-    const existingResponse = await prisma.response.findFirst({
-      where: {
-        jurorId,
-        questionId,
-      },
-    });
+    // Find the response
+    const { data: existingResponse, error: fetchError } = await supabase
+      .from('response')
+      .select('*')
+      .eq('jurorId', jurorId)
+      .eq('questionId', questionId)
+      .single();
 
-    if (!existingResponse) {
+    if (fetchError || !existingResponse) {
       return NextResponse.json({ error: 'Response not found' }, { status: 404 });
     }
 
-    await prisma.response.delete({
-      where: { id: existingResponse.id },
-    });
+    // Delete the response
+    const { error: deleteError } = await supabase
+      .from('response')
+      .delete()
+      .eq('id', existingResponse.id);
+
+    if (deleteError) throw deleteError;
 
     // Recalculate juror's overall score after deleting response
-    const allResponses = await prisma.response.findMany({
-      where: { jurorId },
-      include: { question: true },
-    });
+    const { data: allResponses, error: responseFetchError } = await supabase
+      .from('response')
+      .select('*, question(*)')
+      .eq('jurorId', jurorId);
+
+    if (responseFetchError) throw responseFetchError;
 
     const overallScore = calculateOverallScore(allResponses as any);
 
     if (overallScore !== null) {
-      await prisma.juror.update({
-        where: { id: jurorId },
-        data: { overallScore: Math.round(overallScore * 10) / 10 },
-      });
+      const { error: updateScoreError } = await supabase
+        .from('juror')
+        .update({ overallScore: Math.round(overallScore * 10) / 10 })
+        .eq('id', jurorId);
+
+      if (updateScoreError) throw updateScoreError;
     } else {
       // If no responses left, set overallScore to null
-      await prisma.juror.update({
-        where: { id: jurorId },
-        data: { overallScore: null },
-      });
+      const { error: nullScoreError } = await supabase
+        .from('juror')
+        .update({ overallScore: null })
+        .eq('id', jurorId);
+
+      if (nullScoreError) throw nullScoreError;
     }
 
     return NextResponse.json({ success: true }, { status: 200 });

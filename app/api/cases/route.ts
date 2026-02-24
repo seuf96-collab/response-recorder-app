@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
+import { supabase } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
 
@@ -7,19 +7,30 @@ const DEFAULT_USER_ID = 'default-user';
 
 // Ensure default user exists
 async function ensureDefaultUser() {
-  const user = await prisma.user.findUnique({
-    where: { id: DEFAULT_USER_ID },
-  });
+  const { data: user, error: fetchError } = await supabase
+    .from('user')
+    .select('*')
+    .eq('id', DEFAULT_USER_ID)
+    .single();
+
+  if (fetchError && fetchError.code !== 'PGRST116') {
+    // PGRST116 means no rows found, which is expected
+    throw fetchError;
+  }
 
   if (!user) {
-    await prisma.user.create({
-      data: {
-        id: DEFAULT_USER_ID,
-        email: 'default@response-recorder.local',
-        name: 'Default User',
-        password: '',
-      },
-    });
+    const { error: createError } = await supabase
+      .from('user')
+      .insert([
+        {
+          id: DEFAULT_USER_ID,
+          email: 'default@response-recorder.local',
+          name: 'Default User',
+          password: '',
+        },
+      ]);
+
+    if (createError) throw createError;
   }
 
   return DEFAULT_USER_ID;
@@ -28,16 +39,14 @@ async function ensureDefaultUser() {
 // GET all cases
 export async function GET(_request: NextRequest) {
   try {
-    const cases = await prisma.case.findMany({
-      orderBy: { createdAt: 'desc' },
-      include: {
-        _count: {
-          select: { jurors: true },
-        },
-      },
-    });
+    const { data: cases, error } = await supabase
+      .from('case')
+      .select('*')
+      .order('createdAt', { ascending: false });
 
-    return NextResponse.json({ cases });
+    if (error) throw error;
+
+    return NextResponse.json({ cases: cases || [] });
   } catch (error) {
     console.error('Failed to fetch cases:', error);
     return NextResponse.json({ error: 'Failed to fetch cases' }, { status: 500 });
@@ -71,26 +80,32 @@ export async function POST(request: NextRequest) {
     // Ensure default user exists
     const userId = await ensureDefaultUser();
 
-    const newCase = await prisma.case.create({
-      data: {
-        id: id || undefined,
-        name,
-        causeNumber,
-        defendantName,
-        offenseType,
-        date: date ? new Date(date) : null,
-        jurySize: jurySize || 12,
-        numAlternates: numAlternates || 1,
-        stateStrikes: stateStrikes || 10,
-        defenseStrikes: defenseStrikes || 10,
-        stateAltStrikes: stateAltStrikes || 1,
-        defenseAltStrikes: defenseAltStrikes || 1,
-        venireSize: venireSize || 36,
-        userId,
-      },
-    });
+    const newCase = {
+      id: id || crypto.randomUUID(),
+      name,
+      causeNumber: causeNumber || null,
+      defendantName: defendantName || null,
+      offenseType: offenseType || null,
+      date: date ? new Date(date).toISOString() : null,
+      jurySize: jurySize || 12,
+      numAlternates: numAlternates || 1,
+      stateStrikes: stateStrikes || 10,
+      defenseStrikes: defenseStrikes || 10,
+      stateAltStrikes: stateAltStrikes || 1,
+      defenseAltStrikes: defenseAltStrikes || 1,
+      venireSize: venireSize || 36,
+      userId,
+    };
 
-    return NextResponse.json({ case: newCase }, { status: 201 });
+    const { data: createdCase, error } = await supabase
+      .from('case')
+      .insert([newCase])
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    return NextResponse.json({ case: createdCase }, { status: 201 });
   } catch (error) {
     console.error('Failed to create case:', error);
     return NextResponse.json({ error: 'Failed to create case' }, { status: 500 });
