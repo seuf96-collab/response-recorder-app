@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "prisma db push --skip-generate && next start -p 3000",
+    "start": "next start -p 3000",
+    "postinstall": "prisma generate && prisma migrate deploy || prisma db push --skip-generate || true",
     "lint": "next lint",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "test": "jest"
