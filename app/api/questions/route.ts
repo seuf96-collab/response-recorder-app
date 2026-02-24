@@ -20,8 +20,16 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ questions });
   } catch (error) {
-    console.error('Failed to fetch questions:', error);
-    return NextResponse.json({ error: 'Failed to fetch questions' }, { status: 500 });
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error('Failed to fetch questions - Details:', {
+      message: errorMessage,
+      error: error instanceof Error ? error.stack : error,
+      timestamp: new Date().toISOString(),
+    });
+    return NextResponse.json({
+      error: 'Failed to fetch questions',
+      details: process.env.NODE_ENV === 'development' ? errorMessage : undefined
+    }, { status: 500 });
   }
 }
 
@@ -49,7 +57,15 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ question: newQuestion }, { status: 201 });
   } catch (error) {
-    console.error('Failed to create question:', error);
-    return NextResponse.json({ error: 'Failed to create question' }, { status: 500 });
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error('Failed to create question - Details:', {
+      message: errorMessage,
+      error: error instanceof Error ? error.stack : error,
+      timestamp: new Date().toISOString(),
+    });
+    return NextResponse.json({
+      error: 'Failed to create question',
+      details: process.env.NODE_ENV === 'development' ? errorMessage : undefined
+    }, { status: 500 });
   }
 }
