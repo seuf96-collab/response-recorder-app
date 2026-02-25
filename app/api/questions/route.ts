@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { prisma } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,15 +13,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Case ID is required' }, { status: 400 });
     }
 
-    const { data: questions, error } = await supabase
-      .from('question')
-      .select('*')
-      .eq('caseId', caseId)
-      .order('sortOrder', { ascending: true });
+    const questions = await prisma.question.findMany({
+      where: { caseId },
+      orderBy: { sortOrder: 'asc' },
+    });
 
-    if (error) throw error;
-
-    return NextResponse.json({ questions: questions || [] });
+    return NextResponse.json({ questions });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.error('Failed to fetch questions - Details:', {
@@ -46,25 +43,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    const newQuestion = {
-      caseId,
-      text,
-      type,
-      scaleMax: type === 'SCALED' ? (scaleMax || 5) : null,
-      weight: type === 'SCALED' ? Math.min(Math.max(weight || 1, 1), 5) : 1,
-      category: category || null,
-      sortOrder: sortOrder || 0,
-    };
+    const newQuestion = await prisma.question.create({
+      data: {
+        caseId,
+        text,
+        type,
+        scaleMax: type === 'SCALED' ? (scaleMax || 5) : null,
+        weight: type === 'SCALED' ? Math.min(Math.max(weight || 1, 1), 5) : 1,
+        category,
+        sortOrder: sortOrder || 0,
+      },
+    });
 
-    const { data: createdQuestion, error } = await supabase
-      .from('question')
-      .insert([newQuestion])
-      .select()
-      .single();
-
-    if (error) throw error;
-
-    return NextResponse.json({ question: createdQuestion }, { status: 201 });
+    return NextResponse.json({ question: newQuestion }, { status: 201 });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.error('Failed to create question - Details:', {
