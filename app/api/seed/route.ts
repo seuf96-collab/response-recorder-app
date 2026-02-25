@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
  * Seed the database with default data if it doesn't exist
  * This endpoint is called on app startup to ensure the demo case exists
  */
-export async function POST(request: NextRequest) {
+export async function POST() {
   try {
     // Check if default case exists
     const existingCase = await prisma.case.findUnique({
