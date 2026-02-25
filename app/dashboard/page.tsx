@@ -15,6 +15,17 @@ export default function DashboardPage() {
   const [editValue, setEditValue] = useState('85');
 
   useEffect(() => {
+    // Seed database on mount
+    const seedDatabase = async () => {
+      try {
+        await fetch('/api/seed', { method: 'POST' });
+      } catch (error) {
+        console.error('Failed to seed database:', error);
+      }
+    };
+
+    seedDatabase();
+
     // Load from localStorage on mount
     const saved = localStorage.getItem('venireSize');
     if (saved) {
