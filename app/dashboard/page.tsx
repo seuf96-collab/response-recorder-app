@@ -12,7 +12,11 @@ export default function DashboardPage() {
     venireSize: 85,
   });
   const [editing, setEditing] = useState(false);
-  const [editValue, setEditValue] = useState('85');
+  const [editFormData, setEditFormData] = useState({
+    name: 'State v. Johnson',
+    defendantName: 'Marcus Johnson',
+    venireSize: 85,
+  });
 
   useEffect(() => {
     // Seed database on mount
@@ -27,26 +31,59 @@ export default function DashboardPage() {
     seedDatabase();
 
     // Load from localStorage on mount
-    const saved = localStorage.getItem('venireSize');
-    if (saved) {
-      const size = parseInt(saved);
-      setCaseData(prev => ({ ...prev, venireSize: size }));
-      setEditValue(saved);
+    const savedName = localStorage.getItem('caseName');
+    const savedDefendant = localStorage.getItem('defendantName');
+    const savedVenireSize = localStorage.getItem('venireSize');
+
+    if (savedName || savedDefendant || savedVenireSize) {
+      const newCaseData = {
+        ...caseData,
+        name: savedName || caseData.name,
+        defendantName: savedDefendant || caseData.defendantName,
+        venireSize: savedVenireSize ? parseInt(savedVenireSize) : caseData.venireSize,
+      };
+      setCaseData(newCaseData);
+      setEditFormData(newCaseData);
+    } else {
+      setEditFormData(caseData);
     }
   }, []);
 
-  const handleSave = () => {
-    const newSize = parseInt(editValue) || 85;
-    localStorage.setItem('venireSize', newSize.toString());
-    setCaseData(prev => ({ ...prev, venireSize: newSize }));
+  const handleSave = async () => {
+    // Validate inputs
+    if (!editFormData.name.trim() || !editFormData.defendantName.trim()) {
+      alert('Case name and defendant name cannot be empty');
+      return;
+    }
+
+    // Save to localStorage
+    localStorage.setItem('caseName', editFormData.name);
+    localStorage.setItem('defendantName', editFormData.defendantName);
+    localStorage.setItem('venireSize', editFormData.venireSize.toString());
+
+    // Update case data
+    setCaseData(editFormData);
+    setEditing(false);
+  };
+
+  const handleCancel = () => {
+    setEditFormData(caseData);
     setEditing(false);
   };
 
   const handleReset = () => {
-    if (window.confirm('This will reset everything. Are you sure?')) {
-      localStorage.setItem('venireSize', '85');
-      setCaseData(prev => ({ ...prev, venireSize: 85 }));
-      setEditValue('85');
+    if (window.confirm('This will reset everything to defaults. Are you sure?')) {
+      const defaultData = {
+        id: 'default-case-1',
+        name: 'State v. Johnson',
+        defendantName: 'Marcus Johnson',
+        venireSize: 85,
+      };
+      localStorage.removeItem('caseName');
+      localStorage.removeItem('defendantName');
+      localStorage.removeItem('venireSize');
+      setCaseData(defaultData);
+      setEditFormData(defaultData);
     }
   };
 
@@ -55,29 +92,52 @@ export default function DashboardPage() {
       {/* Case Header */}
       <div className="bg-white dark:bg-slate-800 rounded-lg shadow-md p-6">
         {editing ? (
-          <div className="space-y-4 max-w-md">
+          <div className="space-y-4 max-w-2xl">
+            <div>
+              <label className="block text-sm font-medium dark:text-slate-300 mb-2">Case Name</label>
+              <input
+                type="text"
+                value={editFormData.name}
+                onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
+                className="w-full px-4 py-2.5 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-slate-700 dark:text-white"
+                placeholder="e.g., State v. Johnson"
+              />
+              <p className="text-xs dark:text-slate-500 mt-1">Full case name or caption</p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium dark:text-slate-300 mb-2">Defendant Name</label>
+              <input
+                type="text"
+                value={editFormData.defendantName}
+                onChange={(e) => setEditFormData({ ...editFormData, defendantName: e.target.value })}
+                className="w-full px-4 py-2.5 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-slate-700 dark:text-white"
+                placeholder="e.g., Marcus Johnson"
+              />
+              <p className="text-xs dark:text-slate-500 mt-1">Name of the defendant</p>
+            </div>
+
             <div>
               <label className="block text-sm font-medium dark:text-slate-300 mb-2">Size of Venire</label>
               <input
                 type="number"
-                value={editValue}
-                onChange={(e) => setEditValue(e.target.value)}
-                className="w-full px-4 py-2.5 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-slate-700 dark:text-white text-lg"
+                value={editFormData.venireSize}
+                onChange={(e) => setEditFormData({ ...editFormData, venireSize: parseInt(e.target.value) || 85 })}
+                className="w-full px-4 py-2.5 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-slate-700 dark:text-white"
+                min="1"
               />
               <p className="text-xs dark:text-slate-500 mt-1">Number of jurors in venire</p>
             </div>
-            <div className="flex gap-2">
+
+            <div className="flex gap-2 pt-2">
               <button
                 onClick={handleSave}
                 className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white font-semibold px-4 py-2 rounded-lg transition-colors"
               >
-                Save
+                Save Changes
               </button>
               <button
-                onClick={() => {
-                  setEditing(false);
-                  setEditValue(caseData.venireSize.toString());
-                }}
+                onClick={handleCancel}
                 className="flex items-center gap-2 bg-slate-600 hover:bg-slate-700 text-white font-semibold px-4 py-2 rounded-lg transition-colors"
               >
                 Cancel
@@ -95,10 +155,7 @@ export default function DashboardPage() {
             </div>
             <div className="flex gap-2">
               <button
-                onClick={() => {
-                  setEditing(true);
-                  setEditValue(caseData.venireSize.toString());
-                }}
+                onClick={() => setEditing(true)}
                 className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2 rounded-lg transition-colors"
               >
                 <Edit2 className="w-4 h-4" />
