@@ -13,6 +13,7 @@ export default function DashboardPage() {
   });
   const [editing, setEditing] = useState(false);
   const [editFormData, setEditFormData] = useState({
+    id: 'default-case-1',
     name: 'State v. Johnson',
     defendantName: 'Marcus Johnson',
     venireSize: 85,
