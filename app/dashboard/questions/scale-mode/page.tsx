@@ -5,15 +5,15 @@ import ScaleModeClient from './_components/scale-mode-client';
 
 export default function ScaleModePage() {
   const caseId = 'default-case-1';
-  const caseName = 'State v. Johnson';
+  const [caseName, setCaseName] = useState('State v. Johnson');
   const [venireSize, setVenireSize] = useState(85);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const saved = localStorage.getItem('venireSize');
-    if (saved) {
-      setVenireSize(parseInt(saved));
-    }
+    const savedVenire = localStorage.getItem('venireSize');
+    const savedCase = localStorage.getItem('caseName');
+    if (savedVenire) setVenireSize(parseInt(savedVenire));
+    if (savedCase) setCaseName(savedCase);
     setLoading(false);
   }, []);
 
