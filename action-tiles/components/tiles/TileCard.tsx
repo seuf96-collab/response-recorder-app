@@ -8,6 +8,8 @@ import { CounterTile } from './CounterTile';
 import { TextTile } from './TextTile';
 import { IframeTile } from './IframeTile';
 import { MediaTile } from './MediaTile';
+import { ThermostatTile } from './ThermostatTile';
+import { HumidityTile } from './HumidityTile';
 
 const CELL = 110; // px per grid cell
 
@@ -58,7 +60,7 @@ export function TileCard({
     }
   };
 
-  const showHeader = !['clock', 'text', 'iframe', 'media'].includes(tile.type);
+  const showHeader = !['clock', 'text', 'iframe', 'media', 'thermostat', 'humidity'].includes(tile.type);
 
   const renderBody = () => {
     if (isSimple) return null;
@@ -67,9 +69,11 @@ export function TileCard({
       case 'toggle':  return <ToggleTile config={tile.config} color={tile.color} onToggle={onToggle} />;
       case 'counter': return <CounterTile config={tile.config} color={tile.color} sublabel={tile.sublabel} onUpdate={onUpdateConfig} />;
       case 'text':    return <TextTile config={tile.config} color={tile.color} />;
-      case 'iframe':  return <IframeTile config={tile.config} color={tile.color} />;
-      case 'media':   return <MediaTile config={tile.config} color={tile.color} />;
-      default:        return null;
+      case 'iframe':     return <IframeTile config={tile.config} color={tile.color} />;
+      case 'media':      return <MediaTile config={tile.config} color={tile.color} />;
+      case 'thermostat': return <ThermostatTile config={tile.config} color={tile.color} label={tile.label} onUpdate={onUpdateConfig} />;
+      case 'humidity':   return <HumidityTile config={tile.config} color={tile.color} onUpdate={onUpdateConfig} />;
+      default:           return null;
     }
   };
 
@@ -146,7 +150,7 @@ export function TileCard({
               <span className="text-xs font-semibold text-center leading-tight truncate max-w-full" style={{ color: tile.color }}>
                 {tile.label}
               </span>
-              {tile.type !== 'counter' && tile.sublabel && (
+              {!['counter', 'thermostat', 'humidity'].includes(tile.type) && tile.sublabel && (
                 <span className="text-xs opacity-60 text-center" style={{ color: tile.color }}>{tile.sublabel}</span>
               )}
             </div>

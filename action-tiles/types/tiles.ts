@@ -1,5 +1,7 @@
 export type TileSize = '1x1' | '2x1' | '1x2' | '2x2' | '3x1' | '3x2' | '4x1' | '4x2';
 
+export type ThermostatMode = 'heat' | 'cool' | 'auto' | 'off';
+
 export type TileType =
   | 'button'
   | 'toggle'
@@ -8,7 +10,9 @@ export type TileType =
   | 'counter'
   | 'text'
   | 'iframe'
-  | 'media';
+  | 'media'
+  | 'thermostat'
+  | 'humidity';
 
 export interface TileConfig {
   // button
@@ -38,6 +42,16 @@ export interface TileConfig {
   mediaType?: 'image' | 'video';
   mediaSrc?: string;
   mediaAlt?: string;
+  // thermostat
+  thermostatCurrentTemp?: number;
+  thermostatSetpoint?: number;
+  thermostatMode?: ThermostatMode;
+  thermostatUnit?: '°F' | '°C';
+  thermostatIsActive?: boolean;
+  // humidity
+  humidityValue?: number;
+  humidityMin?: number;
+  humidityMax?: number;
 }
 
 export interface Tile {
@@ -108,45 +122,53 @@ export const TILE_BG_COLORS = [
 ];
 
 export const DEFAULT_TILE_CONFIG: Record<TileType, TileConfig> = {
-  button: { buttonAction: '' },
-  toggle: { toggleState: false, toggleOnLabel: 'ON', toggleOffLabel: 'OFF' },
-  clock: { clockFormat: '12h', clockShowSeconds: true, clockShowDate: true },
-  link: { linkUrl: '', linkTarget: '_blank' },
-  counter: { counterValue: 0, counterStep: 1, counterMin: 0, counterMax: 100 },
-  text: { textContent: 'Your text here', textAlign: 'center' },
-  iframe: { iframeSrc: '' },
-  media: { mediaType: 'image', mediaSrc: '', mediaAlt: '' },
+  button:      { buttonAction: '' },
+  toggle:      { toggleState: false, toggleOnLabel: 'ON', toggleOffLabel: 'OFF' },
+  clock:       { clockFormat: '12h', clockShowSeconds: true, clockShowDate: true },
+  link:        { linkUrl: '', linkTarget: '_blank' },
+  counter:     { counterValue: 0, counterStep: 1, counterMin: 0, counterMax: 100 },
+  text:        { textContent: 'Your text here', textAlign: 'center' },
+  iframe:      { iframeSrc: '' },
+  media:       { mediaType: 'image', mediaSrc: '', mediaAlt: '' },
+  thermostat:  { thermostatCurrentTemp: 72, thermostatSetpoint: 70, thermostatMode: 'heat', thermostatUnit: '°F', thermostatIsActive: false },
+  humidity:    { humidityValue: 45, humidityMin: 0, humidityMax: 100 },
 };
 
 export const TILE_TYPE_LABELS: Record<TileType, string> = {
-  button: 'Button',
-  toggle: 'Toggle Switch',
-  clock: 'Clock',
-  link: 'Link',
-  counter: 'Counter',
-  text: 'Text / Info',
-  iframe: 'Web Embed',
-  media: 'Image / Media',
+  button:     'Button',
+  toggle:     'Toggle Switch',
+  clock:      'Clock',
+  link:       'Link',
+  counter:    'Counter',
+  text:       'Text / Info',
+  iframe:     'Web Embed',
+  media:      'Image / Media',
+  thermostat: 'Thermostat',
+  humidity:   'Humidity',
 };
 
 export const TILE_TYPE_DESCRIPTIONS: Record<TileType, string> = {
-  button: 'A pressable button tile',
-  toggle: 'An on/off toggle switch',
-  clock: 'Live clock and date display',
-  link: 'A clickable link tile',
-  counter: 'A numeric counter with +/− controls',
-  text: 'Static text or information display',
-  iframe: 'Embed an external webpage',
-  media: 'Display an image or video',
+  button:     'A pressable button tile',
+  toggle:     'An on/off toggle switch',
+  clock:      'Live clock and date display',
+  link:       'A clickable link tile',
+  counter:    'A numeric counter with +/− controls',
+  text:       'Static text or information display',
+  iframe:     'Embed an external webpage',
+  media:      'Display an image or video',
+  thermostat: 'Thermostat with setpoint & mode control',
+  humidity:   'Humidity gauge with comfort indicator',
 };
 
 export const TYPE_ICONS: Record<TileType, string> = {
-  button: '🔘',
-  toggle: '🔀',
-  clock: '🕐',
-  link: '🔗',
-  counter: '🔢',
-  text: '📝',
-  iframe: '🌐',
-  media: '🖼️',
+  button:     '🔘',
+  toggle:     '🔀',
+  clock:      '🕐',
+  link:       '🔗',
+  counter:    '🔢',
+  text:       '📝',
+  iframe:     '🌐',
+  media:      '🖼️',
+  thermostat: '🌡️',
+  humidity:   '💧',
 };

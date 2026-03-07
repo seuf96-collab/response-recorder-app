@@ -14,7 +14,7 @@ import {
 } from '@/types/tiles';
 
 const SIZES: TileSize[] = ['1x1', '2x1', '1x2', '2x2', '3x1', '3x2', '4x1', '4x2'];
-const TYPES: TileType[] = ['button', 'toggle', 'clock', 'link', 'counter', 'text', 'iframe', 'media'];
+const TYPES: TileType[] = ['button', 'toggle', 'clock', 'link', 'counter', 'text', 'iframe', 'media', 'thermostat', 'humidity'];
 
 type DraftTile = Omit<Tile, 'id' | 'order'>;
 
@@ -281,6 +281,85 @@ export function TileEditor({ tile, onSave, onClose }: Props) {
                   <Row label="Alt text">
                     <Input value={draft.config.mediaAlt ?? ''} onChange={(v) => setCfg({ mediaAlt: v })} />
                   </Row>
+                </Sec>
+              )}
+
+              {draft.type === 'thermostat' && (
+                <Sec title="Thermostat Settings">
+                  <div className="grid grid-cols-2 gap-3">
+                    <Row label="Current Temp">
+                      <Input
+                        type="number"
+                        value={String(draft.config.thermostatCurrentTemp ?? 72)}
+                        onChange={(v) => setCfg({ thermostatCurrentTemp: Number(v) })}
+                      />
+                    </Row>
+                    <Row label="Setpoint">
+                      <Input
+                        type="number"
+                        value={String(draft.config.thermostatSetpoint ?? 70)}
+                        onChange={(v) => setCfg({ thermostatSetpoint: Number(v) })}
+                      />
+                    </Row>
+                  </div>
+                  <Row label="Mode">
+                    <SegmentedControl
+                      options={[
+                        { label: '🔥 Heat', value: 'heat' },
+                        { label: '❄️ Cool', value: 'cool' },
+                        { label: '♻️ Auto', value: 'auto' },
+                        { label: '○ Off',  value: 'off'  },
+                      ]}
+                      value={draft.config.thermostatMode ?? 'heat'}
+                      onChange={(v) => setCfg({ thermostatMode: v })}
+                    />
+                  </Row>
+                  <Row label="Unit">
+                    <SegmentedControl
+                      options={[{ label: '°F', value: '°F' }, { label: '°C', value: '°C' }]}
+                      value={draft.config.thermostatUnit ?? '°F'}
+                      onChange={(v) => setCfg({ thermostatUnit: v })}
+                    />
+                  </Row>
+                  <Checkbox
+                    label="Show as actively heating/cooling"
+                    checked={draft.config.thermostatIsActive ?? false}
+                    onChange={(v) => setCfg({ thermostatIsActive: v })}
+                  />
+                  <p className="text-xs text-slate-500">
+                    Tap the mode badge on the tile to cycle modes. Use +/− to adjust setpoint.
+                  </p>
+                </Sec>
+              )}
+
+              {draft.type === 'humidity' && (
+                <Sec title="Humidity Settings">
+                  <Row label="Current Humidity (%)">
+                    <Input
+                      type="number"
+                      value={String(draft.config.humidityValue ?? 45)}
+                      onChange={(v) => setCfg({ humidityValue: Number(v) })}
+                    />
+                  </Row>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Row label="Min %">
+                      <Input
+                        type="number"
+                        value={String(draft.config.humidityMin ?? 0)}
+                        onChange={(v) => setCfg({ humidityMin: Number(v) })}
+                      />
+                    </Row>
+                    <Row label="Max %">
+                      <Input
+                        type="number"
+                        value={String(draft.config.humidityMax ?? 100)}
+                        onChange={(v) => setCfg({ humidityMax: Number(v) })}
+                      />
+                    </Row>
+                  </div>
+                  <p className="text-xs text-slate-500">
+                    Comfort zones: 🟡 &lt;30% dry · 🟢 30–60% comfortable · 🔵 &gt;60% humid
+                  </p>
                 </Sec>
               )}
             </>
