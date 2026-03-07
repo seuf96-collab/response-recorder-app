@@ -1,15 +1,22 @@
 'use client';
 
 import { TileConfig } from '@/types/tiles';
+import { STDeviceStatus, SmartThingsClient } from '@/lib/smartthings';
 
 interface Props {
   config: TileConfig;
   color: string;
+  stStatus?: STDeviceStatus;
   onToggle: (v: boolean) => void;
 }
 
-export function ToggleTile({ config, color, onToggle }: Props) {
-  const { toggleState = false, toggleOnLabel = 'ON', toggleOffLabel = 'OFF' } = config;
+export function ToggleTile({ config, color, stStatus, onToggle }: Props) {
+  // If a SmartThings device is linked and we have live status, use it
+  const liveState = stStatus ? SmartThingsClient.getSwitchState(stStatus) : null;
+  const toggleState = liveState ?? config.toggleState ?? false;
+
+  const { toggleOnLabel = 'ON', toggleOffLabel = 'OFF' } = config;
+  const hasLive = liveState !== null;
 
   return (
     <div className="flex flex-col items-center justify-center gap-3 w-full h-full">
@@ -31,6 +38,9 @@ export function ToggleTile({ config, color, onToggle }: Props) {
       <span className="text-xs font-bold tracking-widest uppercase opacity-90" style={{ color }}>
         {toggleState ? toggleOnLabel : toggleOffLabel}
       </span>
+      {hasLive && (
+        <span className="text-[10px] opacity-40 -mt-2" style={{ color }}>● live</span>
+      )}
     </div>
   );
 }

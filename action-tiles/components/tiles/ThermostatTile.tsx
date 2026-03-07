@@ -1,6 +1,7 @@
 'use client';
 
 import { TileConfig, ThermostatMode } from '@/types/tiles';
+import { STDeviceStatus, SmartThingsClient } from '@/lib/smartthings';
 
 const MODE_COLORS: Record<ThermostatMode, { bg: string; label: string; icon: string }> = {
   heat: { bg: '#c2410c', label: 'Heating', icon: '🔥' },
@@ -11,19 +12,39 @@ const MODE_COLORS: Record<ThermostatMode, { bg: string; label: string; icon: str
 
 const MODES: ThermostatMode[] = ['heat', 'cool', 'auto', 'off'];
 
+// SmartThings mode strings → our internal mode
+const ST_MODE_MAP: Record<string, ThermostatMode> = {
+  heat: 'heat', cool: 'cool', auto: 'auto', 'auto changeover': 'auto', off: 'off', emergency: 'heat',
+};
+
 interface Props {
   config: TileConfig;
   color: string;
   label: string;
+  stStatus?: STDeviceStatus;
   onUpdate: (cfg: Partial<TileConfig>) => void;
 }
 
-export function ThermostatTile({ config, color, onUpdate }: Props) {
-  const currentTemp = config.thermostatCurrentTemp ?? 72;
-  const setpoint    = config.thermostatSetpoint    ?? 70;
-  const mode        = config.thermostatMode        ?? 'heat';
-  const unit        = config.thermostatUnit        ?? '°F';
-  const isActive    = config.thermostatIsActive    ?? false;
+export function ThermostatTile({ config, color, stStatus, onUpdate }: Props) {
+  // Prefer live SmartThings data when available
+  const liveTemp    = stStatus ? SmartThingsClient.getTemperature(stStatus)        : null;
+  const liveModeRaw = stStatus ? SmartThingsClient.getThermostatMode(stStatus)     : null;
+  const liveMode    = liveModeRaw ? (ST_MODE_MAP[liveModeRaw] ?? 'auto') : null;
+  const liveHeatSP  = stStatus ? SmartThingsClient.getHeatingSetpoint(stStatus)    : null;
+  const liveCoolSP  = stStatus ? SmartThingsClient.getCoolingSetpoint(stStatus)    : null;
+  const liveOpState = stStatus ? SmartThingsClient.getOperatingState(stStatus)     : null;
+  const hasLive     = liveTemp !== null;
+
+  const currentTemp = liveTemp    ?? config.thermostatCurrentTemp ?? 72;
+  const mode        = liveMode    ?? config.thermostatMode        ?? 'heat';
+  const unit        = config.thermostatUnit ?? '°F';
+  const isActive    = liveOpState ? ['heating', 'cooling'].includes(liveOpState) : (config.thermostatIsActive ?? false);
+
+  // Pick the relevant setpoint based on mode
+  const setpoint =
+    mode === 'cool'
+      ? (liveCoolSP ?? config.thermostatSetpoint ?? 75)
+      : (liveHeatSP ?? config.thermostatSetpoint ?? 70);
 
   const modeInfo = MODE_COLORS[mode];
 
@@ -40,10 +61,11 @@ export function ThermostatTile({ config, color, onUpdate }: Props) {
 
   const diff = currentTemp - setpoint;
   const statusText =
-    mode === 'off'   ? 'Off'
-    : isActive       ? modeInfo.label
-    : diff > 1       ? (mode === 'cool' ? 'Cooling soon' : 'Idle')
-    : diff < -1      ? (mode === 'heat' ? 'Heating soon' : 'Idle')
+    liveOpState               ? liveOpState.charAt(0).toUpperCase() + liveOpState.slice(1)
+    : mode === 'off'          ? 'Off'
+    : isActive                ? modeInfo.label
+    : diff > 1                ? (mode === 'cool' ? 'Cooling soon' : 'Idle')
+    : diff < -1               ? (mode === 'heat' ? 'Heating soon' : 'Idle')
     : 'At target';
 
   return (
@@ -53,7 +75,10 @@ export function ThermostatTile({ config, color, onUpdate }: Props) {
         <span className="text-4xl font-bold tabular-nums leading-none" style={{ color }}>
           {currentTemp}{unit}
         </span>
-        <span className="text-xs opacity-50 mt-0.5" style={{ color }}>Current</span>
+        <div className="flex items-center gap-1 mt-0.5">
+          <span className="text-xs opacity-50" style={{ color }}>Current</span>
+          {hasLive && <span className="text-[10px] opacity-40" style={{ color }}>● live</span>}
+        </div>
       </div>
 
       {/* Setpoint +/- */}
@@ -69,7 +94,9 @@ export function ThermostatTile({ config, color, onUpdate }: Props) {
           <span className="text-xl font-bold tabular-nums" style={{ color }}>
             {setpoint}{unit}
           </span>
-          <span className="text-xs opacity-50" style={{ color }}>Set to</span>
+          <span className="text-xs opacity-50" style={{ color }}>
+            {mode === 'cool' ? 'Cool to' : 'Heat to'}
+          </span>
         </div>
         <button
           onClick={adjustSetpoint(1)}

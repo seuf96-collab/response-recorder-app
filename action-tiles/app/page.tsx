@@ -2,9 +2,11 @@
 
 import { useState } from 'react';
 import { useTileStore } from '@/hooks/useTileStore';
+import { useSmartThings } from '@/hooks/useSmartThings';
 import { TileGrid } from '@/components/tiles/TileGrid';
 import { TileEditor } from '@/components/tiles/TileEditor';
 import { DashboardManager } from '@/components/tiles/DashboardManager';
+import { SmartThingsSettings } from '@/components/SmartThingsSettings';
 import { Tile } from '@/types/tiles';
 
 export default function Home() {
@@ -25,31 +27,29 @@ export default function Home() {
     reorderTiles,
   } = useTileStore();
 
-  const [editorTileId, setEditorTileId] = useState<string | null>(null);   // tile id to edit, or '__new__'
+  const st = useSmartThings();
+
+  const [editorTileId, setEditorTileId] = useState<string | null>(null);
   const [showDashManager, setShowDashManager] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
+  const [showSTSettings, setShowSTSettings] = useState(false);
 
   if (!loaded) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-950">
-        <div className="text-slate-400 text-sm animate-pulse">Loading...</div>
+        <div className="text-slate-400 text-sm animate-pulse">Loading…</div>
       </div>
     );
   }
 
   const editingTile = editorTileId && editorTileId !== '__new__'
-    ? activeDashboard?.tiles.find((t) => t.id === editorTileId) ?? null
+    ? (activeDashboard?.tiles.find((t) => t.id === editorTileId) ?? null)
     : null;
 
-  const handleSave = (
-    draft: Omit<Tile, 'id' | 'order'>,
-    existingId?: string
-  ) => {
+  const handleSave = (draft: Omit<Tile, 'id' | 'order'>, existingId?: string) => {
     if (existingId) {
       updateTile(activeDashboardId, existingId, { ...draft });
     } else {
       const id = addTile(draft.type);
-      // Apply the rest of the draft fields
       updateTile(activeDashboardId, id, {
         label: draft.label,
         sublabel: draft.sublabel,
@@ -65,12 +65,17 @@ export default function Home() {
 
   const bg = activeDashboard?.bgColor ?? '#0f172a';
 
+  const stDot =
+    st.connectionStatus === 'connected'  ? 'bg-green-400'
+    : st.connectionStatus === 'connecting' ? 'bg-yellow-400 animate-pulse'
+    : st.connectionStatus === 'error'      ? 'bg-red-400'
+    : 'bg-slate-600';
+
   return (
     <div className="min-h-screen flex flex-col" style={{ backgroundColor: bg }}>
 
       {/* Top bar */}
       <header className="flex items-center gap-3 px-4 py-3 bg-black/30 backdrop-blur-sm border-b border-white/5 shrink-0">
-        {/* Logo / App name */}
         <div className="flex items-center gap-2 mr-2">
           <span className="text-xl">⊞</span>
           <span className="text-white font-bold text-sm hidden sm:block tracking-tight">Action Tiles</span>
@@ -87,15 +92,15 @@ export default function Home() {
 
         <div className="flex-1" />
 
-        {/* Settings (edit mode: column + gap) */}
-        {editMode && (
-          <button
-            onClick={() => setShowSettings((s) => !s)}
-            className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-medium transition-all"
-          >
-            ⚙️ Settings
-          </button>
-        )}
+        {/* SmartThings status button */}
+        <button
+          onClick={() => setShowSTSettings(true)}
+          className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-medium transition-all"
+          title="SmartThings integration"
+        >
+          <span className={`w-2 h-2 rounded-full shrink-0 ${stDot}`} />
+          <span className="hidden sm:block">SmartThings</span>
+        </button>
 
         {/* Edit toggle */}
         <button
@@ -110,15 +115,10 @@ export default function Home() {
         </button>
       </header>
 
-      {/* Dashboard settings bar (visible in edit mode) */}
-      {editMode && showSettings && activeDashboard && (
-        <SettingsBar dashboard={activeDashboard} onChange={() => {}} />
-      )}
-
       {/* Edit mode banner */}
       {editMode && (
-        <div className="flex items-center justify-center gap-3 px-4 py-2 bg-amber-500/10 border-b border-amber-500/20 text-amber-300 text-xs font-medium">
-          <span>✏️ Edit mode — click tiles to edit, drag to reorder, + to add new</span>
+        <div className="flex items-center justify-center px-4 py-2 bg-amber-500/10 border-b border-amber-500/20 text-amber-300 text-xs font-medium">
+          ✏️ Edit mode — click tiles to edit · drag to reorder · + to add
         </div>
       )}
 
@@ -128,6 +128,9 @@ export default function Home() {
           <TileGrid
             dashboard={activeDashboard}
             editMode={editMode}
+            deviceStatus={st.deviceStatus}
+            stClient={st.client}
+            onRefreshDevice={st.refreshDevice}
             onEditTile={(id) => setEditorTileId(id)}
             onDeleteTile={(id) => deleteTile(activeDashboardId, id)}
             onUpdateTile={(id, updates) => updateTile(activeDashboardId, id, updates)}
@@ -145,6 +148,9 @@ export default function Home() {
           tile={editingTile}
           onSave={handleSave}
           onClose={() => setEditorTileId(null)}
+          stDevices={st.devices}
+          stConnectionStatus={st.connectionStatus}
+          onOpenSTSettings={() => { setEditorTileId(null); setShowSTSettings(true); }}
         />
       )}
 
@@ -157,6 +163,19 @@ export default function Home() {
           onRename={renameDashboard}
           onDelete={deleteDashboard}
           onClose={() => setShowDashManager(false)}
+        />
+      )}
+
+      {showSTSettings && (
+        <SmartThingsSettings
+          token={st.token}
+          connectionStatus={st.connectionStatus}
+          connectionError={st.connectionError}
+          devices={st.devices}
+          onSave={st.saveToken}
+          onClear={st.clearToken}
+          onRefresh={st.refreshDevices}
+          onClose={() => setShowSTSettings(false)}
         />
       )}
     </div>
@@ -177,23 +196,6 @@ function EmptyState({ onEdit }: { onEdit: () => void }) {
       >
         ✏️ Enter Edit Mode
       </button>
-    </div>
-  );
-}
-
-function SettingsBar({ dashboard }: { dashboard: { columns: number; gap: number; bgColor: string }; onChange: () => void }) {
-  return (
-    <div className="flex items-center gap-4 px-4 py-2 bg-black/20 text-slate-300 text-xs border-b border-white/5 flex-wrap">
-      <span className="font-semibold text-slate-400">Dashboard settings:</span>
-      <span>Columns: <strong className="text-white">{dashboard.columns}</strong></span>
-      <span>Gap: <strong className="text-white">{dashboard.gap}px</strong></span>
-      <span>
-        BG:
-        <span
-          className="inline-block w-4 h-4 rounded ml-1 align-middle border border-white/20"
-          style={{ backgroundColor: dashboard.bgColor }}
-        />
-      </span>
     </div>
   );
 }

@@ -11,10 +11,16 @@ import {
   TILE_TYPE_DESCRIPTIONS,
   DEFAULT_TILE_CONFIG,
   TYPE_ICONS,
+  STConnectionStatus,
 } from '@/types/tiles';
+import { STDevice } from '@/lib/smartthings';
+import { SmartThingsDevicePicker } from './SmartThingsDevicePicker';
 
 const SIZES: TileSize[] = ['1x1', '2x1', '1x2', '2x2', '3x1', '3x2', '4x1', '4x2'];
-const TYPES: TileType[] = ['button', 'toggle', 'clock', 'link', 'counter', 'text', 'iframe', 'media', 'thermostat', 'humidity'];
+const TYPES: TileType[] = ['button', 'toggle', 'clock', 'link', 'counter', 'text', 'iframe', 'media', 'thermostat', 'humidity', 'dimmer'];
+
+// Tile types that support SmartThings device linking
+const ST_SUPPORTED: TileType[] = ['toggle', 'thermostat', 'humidity', 'dimmer'];
 
 type DraftTile = Omit<Tile, 'id' | 'order'>;
 
@@ -22,9 +28,13 @@ interface Props {
   tile: Tile | null;   // null = create new
   onSave: (draft: DraftTile, existingId?: string) => void;
   onClose: () => void;
+  /** SmartThings props — passed down from the page */
+  stDevices: STDevice[];
+  stConnectionStatus: STConnectionStatus;
+  onOpenSTSettings: () => void;
 }
 
-export function TileEditor({ tile, onSave, onClose }: Props) {
+export function TileEditor({ tile, onSave, onClose, stDevices, stConnectionStatus, onOpenSTSettings }: Props) {
   const isNew = !tile;
   const [step, setStep] = useState<'type' | 'config'>(isNew ? 'type' : 'config');
 
@@ -360,6 +370,41 @@ export function TileEditor({ tile, onSave, onClose }: Props) {
                   <p className="text-xs text-slate-500">
                     Comfort zones: 🟡 &lt;30% dry · 🟢 30–60% comfortable · 🔵 &gt;60% humid
                   </p>
+                </Sec>
+              )}
+
+              {draft.type === 'dimmer' && (
+                <Sec title="Dimmer Settings">
+                  <div className="grid grid-cols-2 gap-3">
+                    <Row label="Default Level (%)">
+                      <Input
+                        type="number"
+                        value={String(draft.config.dimmerLevel ?? 50)}
+                        onChange={(v) => setCfg({ dimmerLevel: Math.min(100, Math.max(0, Number(v))) })}
+                      />
+                    </Row>
+                    <Row label="Default State">
+                      <SegmentedControl
+                        options={[{ label: 'Off', value: false }, { label: 'On', value: true }]}
+                        value={draft.config.dimmerOn ?? false}
+                        onChange={(v) => setCfg({ dimmerOn: v })}
+                      />
+                    </Row>
+                  </div>
+                </Sec>
+              )}
+
+              {/* SmartThings device link */}
+              {ST_SUPPORTED.includes(draft.type) && (
+                <Sec title="SmartThings Device">
+                  <SmartThingsDevicePicker
+                    tileType={draft.type}
+                    devices={stDevices}
+                    connectionStatus={stConnectionStatus}
+                    selectedDeviceId={draft.config.stDeviceId ?? ''}
+                    onChange={(id) => setCfg({ stDeviceId: id || undefined })}
+                    onOpenSettings={onOpenSTSettings}
+                  />
                 </Sec>
               )}
             </>

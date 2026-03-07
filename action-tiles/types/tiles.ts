@@ -12,7 +12,8 @@ export type TileType =
   | 'iframe'
   | 'media'
   | 'thermostat'
-  | 'humidity';
+  | 'humidity'
+  | 'dimmer';
 
 export interface TileConfig {
   // button
@@ -42,6 +43,8 @@ export interface TileConfig {
   mediaType?: 'image' | 'video';
   mediaSrc?: string;
   mediaAlt?: string;
+  // SmartThings device link (toggle, thermostat, humidity, dimmer)
+  stDeviceId?: string;
   // thermostat
   thermostatCurrentTemp?: number;
   thermostatSetpoint?: number;
@@ -52,6 +55,9 @@ export interface TileConfig {
   humidityValue?: number;
   humidityMin?: number;
   humidityMax?: number;
+  // dimmer
+  dimmerLevel?: number;   // 0–100
+  dimmerOn?: boolean;
 }
 
 export interface Tile {
@@ -132,6 +138,7 @@ export const DEFAULT_TILE_CONFIG: Record<TileType, TileConfig> = {
   media:       { mediaType: 'image', mediaSrc: '', mediaAlt: '' },
   thermostat:  { thermostatCurrentTemp: 72, thermostatSetpoint: 70, thermostatMode: 'heat', thermostatUnit: '°F', thermostatIsActive: false },
   humidity:    { humidityValue: 45, humidityMin: 0, humidityMax: 100 },
+  dimmer:      { dimmerLevel: 50, dimmerOn: false },
 };
 
 export const TILE_TYPE_LABELS: Record<TileType, string> = {
@@ -145,6 +152,7 @@ export const TILE_TYPE_LABELS: Record<TileType, string> = {
   media:      'Image / Media',
   thermostat: 'Thermostat',
   humidity:   'Humidity',
+  dimmer:     'Dimmer',
 };
 
 export const TILE_TYPE_DESCRIPTIONS: Record<TileType, string> = {
@@ -158,7 +166,11 @@ export const TILE_TYPE_DESCRIPTIONS: Record<TileType, string> = {
   media:      'Display an image or video',
   thermostat: 'Thermostat with setpoint & mode control',
   humidity:   'Humidity gauge with comfort indicator',
+  dimmer:     'Dimmer switch with brightness control',
 };
+
+/** Re-exported so components don't import from the hook (avoids circular deps) */
+export type STConnectionStatus = 'idle' | 'connecting' | 'connected' | 'error';
 
 export const TYPE_ICONS: Record<TileType, string> = {
   button:     '🔘',
@@ -171,4 +183,5 @@ export const TYPE_ICONS: Record<TileType, string> = {
   media:      '🖼️',
   thermostat: '🌡️',
   humidity:   '💧',
+  dimmer:     '💡',
 };

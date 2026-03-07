@@ -1,6 +1,7 @@
 'use client';
 
 import { TileConfig } from '@/types/tiles';
+import { STDeviceStatus, SmartThingsClient } from '@/lib/smartthings';
 
 function HumidityArc({ pct, color }: { pct: number; color: string }) {
   const r = 36;
@@ -50,13 +51,17 @@ function HumidityArc({ pct, color }: { pct: number; color: string }) {
 interface Props {
   config: TileConfig;
   color: string;
+  stStatus?: STDeviceStatus;
   onUpdate: (cfg: Partial<TileConfig>) => void;
 }
 
-export function HumidityTile({ config, color, onUpdate }: Props) {
-  const value = config.humidityValue ?? 45;
-  const min   = config.humidityMin   ?? 0;
-  const max   = config.humidityMax   ?? 100;
+export function HumidityTile({ config, color, stStatus, onUpdate }: Props) {
+  const liveHumidity = stStatus ? SmartThingsClient.getHumidity(stStatus) : null;
+  const hasLive = liveHumidity !== null;
+
+  const value = liveHumidity ?? config.humidityValue ?? 45;
+  const min   = config.humidityMin  ?? 0;
+  const max   = config.humidityMax  ?? 100;
 
   const pct = Math.min(100, Math.max(0, ((value - min) / (max - min)) * 100));
 
@@ -74,27 +79,33 @@ export function HumidityTile({ config, color, onUpdate }: Props) {
     <div className="flex flex-col items-center justify-between w-full h-full py-2 px-2">
       <HumidityArc pct={pct} color={color} />
 
-      <span className="text-xs font-semibold" style={{ color: comfort.color }}>
-        {comfort.label}
-      </span>
-
-      <div className="flex items-center gap-3">
-        <button
-          onClick={adjust(-1)}
-          className="w-7 h-7 rounded-full flex items-center justify-center text-base font-bold transition-all hover:scale-110 active:scale-95"
-          style={{ backgroundColor: 'rgba(0,0,0,0.3)', color }}
-        >
-          −
-        </button>
-        <span className="text-xs opacity-40" style={{ color }}>adjust</span>
-        <button
-          onClick={adjust(1)}
-          className="w-7 h-7 rounded-full flex items-center justify-center text-base font-bold transition-all hover:scale-110 active:scale-95"
-          style={{ backgroundColor: 'rgba(0,0,0,0.3)', color }}
-        >
-          +
-        </button>
+      <div className="flex flex-col items-center gap-0.5">
+        <span className="text-xs font-semibold" style={{ color: comfort.color }}>
+          {comfort.label}
+        </span>
+        {hasLive && <span className="text-[10px] opacity-40" style={{ color }}>● live</span>}
       </div>
+
+      {/* +/- (only shown when no live data — it's read-only from ST) */}
+      {!hasLive && (
+        <div className="flex items-center gap-3">
+          <button
+            onClick={adjust(-1)}
+            className="w-7 h-7 rounded-full flex items-center justify-center text-base font-bold transition-all hover:scale-110 active:scale-95"
+            style={{ backgroundColor: 'rgba(0,0,0,0.3)', color }}
+          >
+            −
+          </button>
+          <span className="text-xs opacity-40" style={{ color }}>adjust</span>
+          <button
+            onClick={adjust(1)}
+            className="w-7 h-7 rounded-full flex items-center justify-center text-base font-bold transition-all hover:scale-110 active:scale-95"
+            style={{ backgroundColor: 'rgba(0,0,0,0.3)', color }}
+          >
+            +
+          </button>
+        </div>
+      )}
     </div>
   );
 }

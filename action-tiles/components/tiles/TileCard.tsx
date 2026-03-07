@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Tile, TileConfig, TILE_SIZE_SPANS } from '@/types/tiles';
+import { STDeviceStatus } from '@/lib/smartthings';
 import { ClockTile } from './ClockTile';
 import { ToggleTile } from './ToggleTile';
 import { CounterTile } from './CounterTile';
@@ -10,6 +11,7 @@ import { IframeTile } from './IframeTile';
 import { MediaTile } from './MediaTile';
 import { ThermostatTile } from './ThermostatTile';
 import { HumidityTile } from './HumidityTile';
+import { DimmerTile } from './DimmerTile';
 
 const CELL = 110; // px per grid cell
 
@@ -17,6 +19,8 @@ interface TileCardProps {
   tile: Tile;
   gap: number;
   editMode: boolean;
+  /** Live SmartThings status for this tile's linked device, if any */
+  stStatus?: STDeviceStatus;
   onEdit: () => void;
   onDelete: () => void;
   onUpdateConfig: (cfg: Partial<TileConfig>) => void;
@@ -31,6 +35,7 @@ export function TileCard({
   tile,
   gap,
   editMode,
+  stStatus,
   onEdit,
   onDelete,
   onUpdateConfig,
@@ -60,19 +65,21 @@ export function TileCard({
     }
   };
 
-  const showHeader = !['clock', 'text', 'iframe', 'media', 'thermostat', 'humidity'].includes(tile.type);
+  const showHeader = !['clock', 'text', 'iframe', 'media', 'thermostat', 'humidity', 'dimmer'].includes(tile.type);
+  const isLinked = Boolean(tile.config.stDeviceId);
 
   const renderBody = () => {
     if (isSimple) return null;
     switch (tile.type) {
-      case 'clock':   return <ClockTile config={tile.config} color={tile.color} />;
-      case 'toggle':  return <ToggleTile config={tile.config} color={tile.color} onToggle={onToggle} />;
-      case 'counter': return <CounterTile config={tile.config} color={tile.color} sublabel={tile.sublabel} onUpdate={onUpdateConfig} />;
-      case 'text':    return <TextTile config={tile.config} color={tile.color} />;
+      case 'clock':      return <ClockTile config={tile.config} color={tile.color} />;
+      case 'toggle':     return <ToggleTile config={tile.config} color={tile.color} stStatus={stStatus} onToggle={onToggle} />;
+      case 'counter':    return <CounterTile config={tile.config} color={tile.color} sublabel={tile.sublabel} onUpdate={onUpdateConfig} />;
+      case 'text':       return <TextTile config={tile.config} color={tile.color} />;
       case 'iframe':     return <IframeTile config={tile.config} color={tile.color} />;
       case 'media':      return <MediaTile config={tile.config} color={tile.color} />;
-      case 'thermostat': return <ThermostatTile config={tile.config} color={tile.color} label={tile.label} onUpdate={onUpdateConfig} />;
-      case 'humidity':   return <HumidityTile config={tile.config} color={tile.color} onUpdate={onUpdateConfig} />;
+      case 'thermostat': return <ThermostatTile config={tile.config} color={tile.color} label={tile.label} stStatus={stStatus} onUpdate={onUpdateConfig} />;
+      case 'humidity':   return <HumidityTile config={tile.config} color={tile.color} stStatus={stStatus} onUpdate={onUpdateConfig} />;
+      case 'dimmer':     return <DimmerTile config={tile.config} color={tile.color} stStatus={stStatus} onUpdate={onUpdateConfig} onToggle={onToggle} />;
       default:           return null;
     }
   };
@@ -100,6 +107,15 @@ export function TileCard({
       {/* Edit ring */}
       {editMode && (
         <div className="absolute inset-0 rounded-2xl ring-2 ring-white/20 pointer-events-none z-10" />
+      )}
+
+      {/* SmartThings link dot (bottom-left) */}
+      {isLinked && !editMode && (
+        <div
+          className="absolute bottom-1.5 left-1.5 w-1.5 h-1.5 rounded-full z-10"
+          style={{ backgroundColor: stStatus ? '#22c55e' : '#64748b' }}
+          title={stStatus ? 'SmartThings: live' : 'SmartThings: no data'}
+        />
       )}
 
       {/* Delete button */}
@@ -150,7 +166,7 @@ export function TileCard({
               <span className="text-xs font-semibold text-center leading-tight truncate max-w-full" style={{ color: tile.color }}>
                 {tile.label}
               </span>
-              {!['counter', 'thermostat', 'humidity'].includes(tile.type) && tile.sublabel && (
+              {!['counter', 'thermostat', 'humidity', 'dimmer'].includes(tile.type) && tile.sublabel && (
                 <span className="text-xs opacity-60 text-center" style={{ color: tile.color }}>{tile.sublabel}</span>
               )}
             </div>
