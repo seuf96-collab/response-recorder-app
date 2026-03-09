@@ -206,6 +206,12 @@ export default function DashboardPage() {
         >
           Response Tracker
         </Link>
+        <Link
+          href="/dashboard/strikes"
+          className="bg-red-600 hover:bg-red-700 text-white font-semibold px-5 py-3 rounded-lg transition-colors"
+        >
+          Strike Recorder
+        </Link>
       </div>
 
       {/* Info Cards */}
