@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import ScaleModeClient from './_components/scale-mode-client';
 
+export const dynamic = 'force-dynamic';
+
 export default function ScaleModePage() {
   const searchParams = useSearchParams();
   const caseId = 'default-case-1';
