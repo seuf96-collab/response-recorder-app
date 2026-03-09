@@ -26,8 +26,8 @@ const STRIKE_ACTIONS: { type: StrikeType; label: string; shortLabel: string; key
     label: 'Excused',
     shortLabel: 'EXC',
     key: 'E',
-    buttonClass: 'bg-slate-500 hover:bg-slate-600',
-    cellClass: 'bg-slate-600 text-slate-300',
+    buttonClass: 'bg-amber-500 hover:bg-amber-600',
+    cellClass: 'bg-amber-600 text-white',
   },
 ];
 
@@ -164,7 +164,7 @@ export default function StrikeModeClient({ caseId, caseName, venireSize }: Props
           <span className="text-purple-300">
             <span className="font-bold">{counts.CAUSE}</span> cause
           </span>
-          <span className="text-slate-400">
+          <span className="text-amber-300">
             <span className="font-bold">{counts.EXCUSED}</span> excused
           </span>
         </div>
