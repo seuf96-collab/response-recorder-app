@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   ArrowLeft,
@@ -8,6 +8,7 @@ import {
   Check,
   X as XIcon,
   MessageSquare,
+  RefreshCw,
 } from 'lucide-react';
 
 interface Question {
@@ -17,6 +18,9 @@ interface Question {
   scaleMax: number | null;
   category: string | null;
   sortOrder: number;
+  side: string;
+  reverseValues?: boolean;
+  weight?: number;
 }
 
 interface Juror {
@@ -43,20 +47,21 @@ interface Props {
   venireSize?: number;
 }
 
+type SideFilter = 'ALL' | 'STATE' | 'DEFENSE';
+
 export default function TrackerClient({ caseId, caseName, venireSize = 36 }: Props) {
   const router = useRouter();
   const [questions, setQuestions] = useState<Question[]>([]);
   const [jurors, setJurors] = useState<Juror[]>([]);
   const [responses, setResponses] = useState<ResponseData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [recalculating, setRecalculating] = useState(false);
   const [filterType, setFilterType] = useState<'ALL' | 'SCALED' | 'OPEN_ENDED' | 'YES_NO'>('ALL');
   const [showOnlyUnanswered, setShowOnlyUnanswered] = useState(false);
+  const [activeSide, setActiveSide] = useState<SideFilter>('ALL');
+  const [struckJurors, setStruckJurors] = useState<Set<number>>(new Set());
 
-  useEffect(() => {
-    loadData();
-  }, [caseId]);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       const [questionsRes, responsesRes] = await Promise.all([
         fetch(`/api/questions?caseId=${caseId}`),
@@ -83,7 +88,6 @@ export default function TrackerClient({ caseId, caseName, venireSize = 36 }: Pro
           })
         );
         setJurors(generatedJurors);
-
         setResponses(responsesData.responses ?? []);
       }
     } catch (error) {
@@ -91,7 +95,36 @@ export default function TrackerClient({ caseId, caseName, venireSize = 36 }: Pro
     } finally {
       setLoading(false);
     }
-  };
+  }, [caseId, venireSize]);
+
+  // Load struck jurors from localStorage
+  useEffect(() => {
+    try {
+      const rawStrikes = localStorage.getItem(`strikes-${caseId}`);
+      if (rawStrikes) {
+        const obj = JSON.parse(rawStrikes) as Record<string, string>;
+        const struckNums = new Set<number>();
+        for (const [numStr, strikeType] of Object.entries(obj)) {
+          if (strikeType) {
+            struckNums.add(parseInt(numStr));
+          }
+        }
+        setStruckJurors(struckNums);
+      }
+    } catch (e) {
+      // ignore parse errors
+    }
+  }, [caseId]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  const handleRecalc = useCallback(async () => {
+    setRecalculating(true);
+    await loadData();
+    setRecalculating(false);
+  }, [loadData]);
 
   // Build response lookup: `${questionId}:${jurorId}` -> ResponseData
   const responseLookup = useMemo(() => {
@@ -102,13 +135,36 @@ export default function TrackerClient({ caseId, caseName, venireSize = 36 }: Pro
     return lookup;
   }, [responses]);
 
+  // Filter and sort questions: STATE first, then DEFENSE, then by sortOrder
   const filteredQuestions = useMemo(() => {
-    let qs = questions;
+    let qs = [...questions];
+
+    // Filter by side
+    if (activeSide !== 'ALL') {
+      qs = qs.filter(q => q.side === activeSide);
+    }
+
+    // Filter by type
     if (filterType !== 'ALL') {
       qs = qs.filter(q => q.type === filterType);
     }
+
+    // Sort: STATE before DEFENSE, then by sortOrder
+    qs.sort((a, b) => {
+      if (a.side !== b.side) {
+        if (a.side === 'STATE') return -1;
+        if (b.side === 'STATE') return 1;
+      }
+      return a.sortOrder - b.sortOrder;
+    });
+
     return qs;
-  }, [questions, filterType]);
+  }, [questions, filterType, activeSide]);
+
+  // Filter out struck jurors
+  const activeJurors = useMemo(() => {
+    return jurors.filter(j => !struckJurors.has(j.jurorNumber));
+  }, [jurors, struckJurors]);
 
   const isAnswered = (questionId: string, jurorId: string): boolean => {
     const resp = responseLookup.get(`${questionId}:${jurorId}`);
@@ -120,29 +176,92 @@ export default function TrackerClient({ caseId, caseName, venireSize = 36 }: Pro
     const resp = responseLookup.get(`${questionId}:${jurorId}`);
     if (!resp) return '';
     if (resp.scaledValue !== null) return resp.scaledValue.toString();
-    if (resp.boolValue !== null) return resp.boolValue ? 'Yes' : 'No';
+    if (resp.boolValue !== null) return resp.boolValue ? 'Y' : 'N';
     if (resp.textValue) return resp.textValue.length > 20 ? resp.textValue.substring(0, 20) + '...' : resp.textValue;
     return '';
   };
 
+  // Calculate overall score for a juror by summing numerical response values
+  const calculateJurorScore = useCallback((jurorId: string): number | null => {
+    let totalScore = 0;
+    let hasResponse = false;
+
+    for (const q of filteredQuestions) {
+      const resp = responseLookup.get(`${q.id}:${jurorId}`);
+      if (!resp) continue;
+
+      // Sum scaled responses
+      if (q.type === 'SCALED' && resp.scaledValue !== null) {
+        totalScore += resp.scaledValue;
+        hasResponse = true;
+      }
+      // Convert YES_NO to 1 (yes) or 0 (no)
+      else if (q.type === 'YES_NO' && resp.boolValue !== null) {
+        totalScore += resp.boolValue ? 1 : 0;
+        hasResponse = true;
+      }
+      // OPEN_ENDED has no numerical value, skip
+    }
+
+    if (!hasResponse) return null;
+    return totalScore;
+  }, [filteredQuestions, responseLookup]);
+
+  // Calculate scores for all active jurors and determine top/bottom 15
+  const jurorScores = useMemo(() => {
+    const scores = new Map<string, number | null>();
+    for (const j of activeJurors) {
+      scores.set(j.id, calculateJurorScore(j.id));
+    }
+    return scores;
+  }, [activeJurors, calculateJurorScore]);
+
+  const { topJurorIds, bottomJurorIds } = useMemo(() => {
+    const scored = activeJurors
+      .map(j => ({ id: j.id, score: jurorScores.get(j.id) }))
+      .filter(j => j.score !== null) as { id: string; score: number }[];
+
+    scored.sort((a, b) => b.score - a.score);
+
+    const top15 = new Set(scored.slice(0, 15).map(j => j.id));
+    const bottom15 = new Set(scored.slice(-15).map(j => j.id));
+
+    // If a juror is in both (fewer than 30 scored), remove from bottom
+    for (const id of top15) {
+      bottom15.delete(id);
+    }
+
+    return { topJurorIds: top15, bottomJurorIds: bottom15 };
+  }, [activeJurors, jurorScores]);
+
   // Filter jurors to only those with unanswered questions
   const displayJurors = useMemo(() => {
-    if (!showOnlyUnanswered) return jurors;
-    return jurors.filter(j =>
-      filteredQuestions.some(q => !isAnswered(q.id, j.id))
-    );
-  }, [jurors, filteredQuestions, showOnlyUnanswered, responseLookup]);
+    let js = activeJurors;
+    if (showOnlyUnanswered) {
+      js = js.filter(j =>
+        filteredQuestions.some(q => !isAnswered(q.id, j.id))
+      );
+    }
+    return js;
+  }, [activeJurors, filteredQuestions, showOnlyUnanswered, responseLookup]);
 
-  // Stats
-  const totalCells = filteredQuestions.length * jurors.length;
+  // Stats (use activeJurors, not jurors)
+  const totalCells = filteredQuestions.length * activeJurors.length;
   const answeredCells = filteredQuestions.reduce(
-    (count, q) => count + jurors.filter(j => isAnswered(q.id, j.id)).length,
+    (count, q) => count + activeJurors.filter(j => isAnswered(q.id, j.id)).length,
     0
   );
   const completionPct = totalCells > 0 ? Math.round((answeredCells / totalCells) * 100) : 0;
 
   const handleCellClick = (questionId: string, jurorId: string) => {
     router.push(`/dashboard/questions/responses?caseId=${caseId}&questionId=${questionId}&jurorId=${jurorId}`);
+  };
+
+  // Get row background color based on score ranking
+  const getRowColor = (jurorId: string): string => {
+    if (topJurorIds.has(jurorId)) return 'bg-green-900/20';
+    if (bottomJurorIds.has(jurorId)) return 'bg-red-900/20';
+    return '';
   };
 
   if (loading) {
@@ -187,8 +306,23 @@ export default function TrackerClient({ caseId, caseName, venireSize = 36 }: Pro
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold dark:text-white text-slate-900">Response Tracker</h1>
-            <p className="dark:text-slate-400 text-slate-600">{caseName}</p>
+            <p className="dark:text-slate-400 text-slate-600">
+              {caseName}
+              {struckJurors.size > 0 && (
+                <span className="ml-2 text-amber-400 text-sm">
+                  ({struckJurors.size} struck, {activeJurors.length} remaining)
+                </span>
+              )}
+            </p>
           </div>
+          <button
+            onClick={handleRecalc}
+            disabled={recalculating}
+            className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 text-white font-semibold px-4 py-2 rounded-lg transition-colors"
+          >
+            <RefreshCw className={`w-4 h-4 ${recalculating ? 'animate-spin' : ''}`} />
+            Recalc Scores
+          </button>
         </div>
       </div>
 
@@ -213,7 +347,28 @@ export default function TrackerClient({ caseId, caseName, venireSize = 36 }: Pro
       </div>
 
       {/* Filters */}
-      <div className="flex items-center gap-4 mb-6">
+      <div className="flex items-center gap-4 mb-6 flex-wrap">
+        {/* Side Toggle */}
+        <div className="flex rounded-lg overflow-hidden border border-slate-600">
+          {(['ALL', 'STATE', 'DEFENSE'] as SideFilter[]).map(side => (
+            <button
+              key={side}
+              onClick={() => setActiveSide(side)}
+              className={`px-4 py-2 text-sm font-semibold transition-colors ${
+                activeSide === side
+                  ? side === 'STATE'
+                    ? 'bg-blue-600 text-white'
+                    : side === 'DEFENSE'
+                    ? 'bg-purple-600 text-white'
+                    : 'bg-slate-600 text-white'
+                  : 'dark:text-slate-400 text-slate-600 hover:bg-slate-700/50'
+              }`}
+            >
+              {side}
+            </button>
+          ))}
+        </div>
+
         <div className="flex items-center gap-2">
           <Filter className="w-4 h-4 dark:text-slate-400 text-slate-500" />
           <select
@@ -248,37 +403,38 @@ export default function TrackerClient({ caseId, caseName, venireSize = 36 }: Pro
               <th className="sticky left-0 z-10 bg-slate-100 dark:bg-slate-900 px-4 py-3 text-left text-sm font-semibold dark:text-slate-300 text-slate-700 border-b border-r border-slate-200 dark:border-slate-700 min-w-[120px]">
                 Juror
               </th>
-              {filteredQuestions.map((q, i) => (
-                <th
-                  key={q.id}
-                  className="px-3 py-3 text-center text-xs font-medium dark:text-slate-400 text-slate-600 border-b border-slate-200 dark:border-slate-700 min-w-[80px]"
-                  title={q.text}
-                >
-                  <div className="flex flex-col items-center gap-1">
-                    <span>Q{i + 1}</span>
-                    <span
-                      className={`inline-block w-2 h-2 rounded-full ${
-                        q.type === 'SCALED' ? 'bg-amber-400' : q.type === 'YES_NO' ? 'bg-purple-400' : 'bg-blue-400'
-                      }`}
-                    />
-                  </div>
-                </th>
-              ))}
+              {filteredQuestions.map((q, i) => {
+                const sideLabel = q.side === 'DEFENSE' ? 'D' : 'S';
+                return (
+                  <th
+                    key={q.id}
+                    className="px-3 py-3 text-center text-xs font-medium dark:text-slate-400 text-slate-600 border-b border-slate-200 dark:border-slate-700 min-w-[80px]"
+                    title={q.text}
+                  >
+                    <div className="flex flex-col items-center gap-1">
+                      <span>Q{i + 1}-{sideLabel}</span>
+                      <span
+                        className={`inline-block w-2 h-2 rounded-full ${
+                          q.type === 'SCALED' ? 'bg-amber-400' : q.type === 'YES_NO' ? 'bg-purple-400' : 'bg-blue-400'
+                        }`}
+                      />
+                    </div>
+                  </th>
+                );
+              })}
               <th className="px-4 py-3 text-center text-xs font-medium dark:text-slate-400 text-slate-600 border-b border-l border-slate-200 dark:border-slate-700 min-w-[80px]">
-                Progress
+                Score
               </th>
             </tr>
           </thead>
           <tbody>
             {displayJurors.map(juror => {
-              const jurorAnswered = filteredQuestions.filter(q => isAnswered(q.id, juror.id)).length;
-              const jurorPct = filteredQuestions.length > 0
-                ? Math.round((jurorAnswered / filteredQuestions.length) * 100)
-                : 0;
+              const score = jurorScores.get(juror.id);
+              const rowColor = getRowColor(juror.id);
 
               return (
-                <tr key={juror.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                  <td className="sticky left-0 z-10 bg-white dark:bg-slate-800 px-4 py-2.5 text-sm font-medium dark:text-slate-300 text-slate-700 border-b border-r border-slate-200 dark:border-slate-700">
+                <tr key={juror.id} className={`hover:bg-slate-50 dark:hover:bg-slate-800/50 ${rowColor}`}>
+                  <td className={`sticky left-0 z-10 ${rowColor || 'bg-white dark:bg-slate-800'} px-4 py-2.5 text-sm font-medium dark:text-slate-300 text-slate-700 border-b border-r border-slate-200 dark:border-slate-700`}>
                     <span className="font-bold">#{juror.jurorNumber}</span>{' '}
                     {juror.firstName} {juror.lastName}
                   </td>
@@ -303,7 +459,7 @@ export default function TrackerClient({ caseId, caseName, venireSize = 36 }: Pro
                           {answered ? (
                             <span className="flex items-center justify-center gap-1">
                               <Check className="w-3 h-3" />
-                              {q.type === 'SCALED' ? value : ''}
+                              {(q.type === 'SCALED' || q.type === 'YES_NO') ? value : ''}
                             </span>
                           ) : (
                             <XIcon className="w-3 h-3 mx-auto" />
@@ -312,24 +468,17 @@ export default function TrackerClient({ caseId, caseName, venireSize = 36 }: Pro
                       </td>
                     );
                   })}
+                  {/* Score Column */}
                   <td className="px-3 py-2.5 text-center border-b border-l border-slate-200 dark:border-slate-700">
-                    <div className="flex items-center gap-2">
-                      <div className="flex-1 h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-                        <div
-                          className={`h-full rounded-full transition-all ${
-                            jurorPct === 100
-                              ? 'bg-green-500'
-                              : jurorPct > 50
-                              ? 'bg-amber-500'
-                              : 'bg-red-500'
-                          }`}
-                          style={{ width: `${jurorPct}%` }}
-                        />
-                      </div>
-                      <span className="text-xs dark:text-slate-400 text-slate-600 min-w-[32px]">
-                        {jurorPct}%
+                    {score !== null && score !== undefined ? (
+                      <span className={`text-sm font-bold ${
+                        topJurorIds.has(juror.id) ? 'text-green-400' : bottomJurorIds.has(juror.id) ? 'text-red-400' : 'text-amber-400'
+                      }`}>
+                        {Math.round(score)}
                       </span>
-                    </div>
+                    ) : (
+                      <span className="text-xs dark:text-slate-500">—</span>
+                    )}
                   </td>
                 </tr>
               );
@@ -339,7 +488,7 @@ export default function TrackerClient({ caseId, caseName, venireSize = 36 }: Pro
       </div>
 
       {/* Legend */}
-      <div className="mt-4 flex items-center gap-6 text-sm dark:text-slate-400 text-slate-600">
+      <div className="mt-4 flex items-center gap-6 text-sm dark:text-slate-400 text-slate-600 flex-wrap">
         <div className="flex items-center gap-2">
           <div className="w-4 h-4 rounded bg-green-100 dark:bg-green-900/40 flex items-center justify-center">
             <Check className="w-3 h-3 text-green-600 dark:text-green-400" />
@@ -358,7 +507,15 @@ export default function TrackerClient({ caseId, caseName, venireSize = 36 }: Pro
         </div>
         <div className="flex items-center gap-2">
           <div className="w-2 h-2 rounded-full bg-purple-400" />
-          <span>Open-Ended</span>
+          <span>Yes/No</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-4 h-4 rounded bg-green-900/20" />
+          <span>Top 15 (Favorable)</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-4 h-4 rounded bg-red-900/20" />
+          <span>Bottom 15 (Unfavorable)</span>
         </div>
       </div>
     </div>
