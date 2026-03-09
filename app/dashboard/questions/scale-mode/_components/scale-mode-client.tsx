@@ -89,6 +89,21 @@ export default function ScaleModeClient({ caseId, caseName, venireSize = 36, sid
         );
         setJurors(generatedJurors);
 
+        // Load struck jurors from Strike Recorder localStorage
+        try {
+          const rawStrikes = localStorage.getItem(`strikes-${caseId}`);
+          if (rawStrikes) {
+            const obj = JSON.parse(rawStrikes) as Record<string, string>;
+            const struckSet = new Set<string>();
+            for (const jurorNumStr of Object.keys(obj)) {
+              struckSet.add(`juror-${jurorNumStr}`);
+            }
+            setStruckJurors(struckSet);
+          }
+        } catch {
+          // ignore localStorage errors
+        }
+
         // Build responses map: questionId -> jurorId -> scaledValue (or 0/1 for YES_NO)
         const responseMap = new Map<string, Map<string, number>>();
         for (const resp of responsesData.responses ?? []) {

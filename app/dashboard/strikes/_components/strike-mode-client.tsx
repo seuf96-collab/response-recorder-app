@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { X } from 'lucide-react';
 
-type StrikeType = 'STATE' | 'DEFENSE' | 'CAUSE' | 'EXCUSED';
+type StrikeType = 'CAUSE' | 'EXCUSED';
 
 interface Props {
   caseId: string;
@@ -13,22 +13,6 @@ interface Props {
 }
 
 const STRIKE_ACTIONS: { type: StrikeType; label: string; shortLabel: string; key: string; buttonClass: string; cellClass: string }[] = [
-  {
-    type: 'STATE',
-    label: 'State Strike',
-    shortLabel: 'STATE',
-    key: 'S',
-    buttonClass: 'bg-red-600 hover:bg-red-700',
-    cellClass: 'bg-red-700 text-white',
-  },
-  {
-    type: 'DEFENSE',
-    label: 'Defense Strike',
-    shortLabel: 'DEF',
-    key: 'D',
-    buttonClass: 'bg-orange-500 hover:bg-orange-600',
-    cellClass: 'bg-orange-600 text-white',
-  },
   {
     type: 'CAUSE',
     label: 'For Cause',
@@ -118,8 +102,6 @@ export default function StrikeModeClient({ caseId, caseName, venireSize }: Props
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
 
       switch (e.key.toLowerCase()) {
-        case 's': handleStrikeButton('STATE'); break;
-        case 'd': handleStrikeButton('DEFENSE'); break;
         case 'c': handleStrikeButton('CAUSE'); break;
         case 'e': handleStrikeButton('EXCUSED'); break;
         case 'u':
@@ -136,9 +118,7 @@ export default function StrikeModeClient({ caseId, caseName, venireSize }: Props
 
   const jurors = Array.from({ length: venireSize }, (_, i) => i + 1);
 
-  const counts = {
-    STATE: 0, DEFENSE: 0, CAUSE: 0, EXCUSED: 0,
-  };
+  const counts = { CAUSE: 0, EXCUSED: 0 };
   for (const v of strikes.values()) counts[v]++;
   const activeCount = venireSize - strikes.size;
 
@@ -181,17 +161,11 @@ export default function StrikeModeClient({ caseId, caseName, venireSize }: Props
           <span className="text-slate-300">
             <span className="font-bold text-white">{activeCount}</span> active
           </span>
-          <span className="text-red-300">
-            <span className="font-bold">{counts.STATE}</span> state
-          </span>
-          <span className="text-orange-300">
-            <span className="font-bold">{counts.DEFENSE}</span> def
-          </span>
           <span className="text-purple-300">
             <span className="font-bold">{counts.CAUSE}</span> cause
           </span>
           <span className="text-slate-400">
-            <span className="font-bold">{counts.EXCUSED}</span> exc
+            <span className="font-bold">{counts.EXCUSED}</span> excused
           </span>
         </div>
       </div>
@@ -264,8 +238,6 @@ export default function StrikeModeClient({ caseId, caseName, venireSize }: Props
           {/* Keyboard legend */}
           <div className="mt-auto pt-4 border-t border-slate-700 space-y-1.5">
             <p className="text-xs text-slate-500 font-semibold uppercase tracking-wide mb-2">Keyboard</p>
-            <p className="text-xs text-slate-500">S = State Strike</p>
-            <p className="text-xs text-slate-500">D = Defense Strike</p>
             <p className="text-xs text-slate-500">C = For Cause</p>
             <p className="text-xs text-slate-500">E = Excused</p>
             <p className="text-xs text-slate-500">U / ⌫ = Undo</p>
