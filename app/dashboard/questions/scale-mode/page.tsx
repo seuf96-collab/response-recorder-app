@@ -1,13 +1,18 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import ScaleModeClient from './_components/scale-mode-client';
 
 export default function ScaleModePage() {
+  const searchParams = useSearchParams();
   const caseId = 'default-case-1';
   const caseName = 'State v. Johnson';
   const [venireSize, setVenireSize] = useState(85);
   const [loading, setLoading] = useState(true);
+
+  const rawSide = searchParams.get('side');
+  const side: 'STATE' | 'DEFENSE' = rawSide === 'DEFENSE' ? 'DEFENSE' : 'STATE';
 
   useEffect(() => {
     const saved = localStorage.getItem('venireSize');
@@ -26,6 +31,7 @@ export default function ScaleModePage() {
       caseId={caseId}
       caseName={caseName}
       venireSize={venireSize}
+      side={side}
     />
   );
 }

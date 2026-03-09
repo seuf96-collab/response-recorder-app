@@ -58,13 +58,17 @@ export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
     const caseId = searchParams.get('caseId');
+    const side = searchParams.get('side'); // optional: 'STATE' or 'DEFENSE'
 
     if (!caseId) {
       return NextResponse.json({ error: 'Case ID is required' }, { status: 400 });
     }
 
     const questions = await prisma.question.findMany({
-      where: { caseId },
+      where: {
+        caseId,
+        ...(side ? { side } : {}),
+      },
       orderBy: { sortOrder: 'asc' },
     });
 
@@ -90,7 +94,7 @@ export async function POST(request: NextRequest) {
     await ensureDefaultCaseExists();
 
     const body = await request.json();
-    const { caseId, text, type, scaleMax, weight, category, sortOrder } = body;
+    const { caseId, text, type, side, scaleMax, weight, category, sortOrder } = body;
 
     if (!caseId || !text || !type) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -101,6 +105,7 @@ export async function POST(request: NextRequest) {
         caseId,
         text,
         type,
+        side: side === 'DEFENSE' ? 'DEFENSE' : 'STATE',
         scaleMax: type === 'SCALED' ? (scaleMax || 5) : null,
         weight: type === 'SCALED' ? Math.min(Math.max(weight || 1, 1), 5) : 1,
         category,

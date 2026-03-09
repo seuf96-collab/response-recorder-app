@@ -15,6 +15,7 @@ interface Question {
   id: string;
   text: string;
   type: string;
+  side: string;
   scaleMax: number | null;
   category: string | null;
   sortOrder: number;
@@ -34,9 +35,10 @@ interface Props {
   caseId: string;
   caseName: string;
   venireSize?: number;
+  side?: 'STATE' | 'DEFENSE';
 }
 
-export default function ScaleModeClient({ caseId, caseName, venireSize = 36 }: Props) {
+export default function ScaleModeClient({ caseId, caseName, venireSize = 36, side = 'STATE' }: Props) {
   const router = useRouter();
   const [questions, setQuestions] = useState<Question[]>([]);
   const [jurors, setJurors] = useState<Juror[]>([]);
@@ -50,14 +52,16 @@ export default function ScaleModeClient({ caseId, caseName, venireSize = 36 }: P
   const [bulkMode, setBulkMode] = useState(false);
   const [bulkScore, setBulkScore] = useState<number | null>(null);
 
+  const isDefense = side === 'DEFENSE';
+
   useEffect(() => {
     loadData();
-  }, [caseId]);
+  }, [caseId, side]);
 
   const loadData = async () => {
     try {
       const [questionsRes, responsesRes] = await Promise.all([
-        fetch(`/api/questions?caseId=${caseId}`),
+        fetch(`/api/questions?caseId=${caseId}&side=${side}`),
         fetch(`/api/responses?caseId=${caseId}`),
       ]);
 
@@ -92,7 +96,7 @@ export default function ScaleModeClient({ caseId, caseName, venireSize = 36 }: P
           if (resp.scaledValue !== null && resp.scaledValue !== undefined) {
             value = resp.scaledValue;
           } else if (resp.boolValue !== null && resp.boolValue !== undefined) {
-            value = resp.boolValue ? 1 : 0; // Convert boolean to 0/1
+            value = resp.boolValue ? 1 : 0;
           }
 
           if (value !== null) {
@@ -139,7 +143,6 @@ export default function ScaleModeClient({ caseId, caseName, venireSize = 36 }: P
       });
 
       if (res.ok) {
-        // Update local state to remove the response
         setResponses(prev => {
           const newMap = new Map(prev);
           const questionResponses = newMap.get(currentQuestion.id);
@@ -161,10 +164,8 @@ export default function ScaleModeClient({ caseId, caseName, venireSize = 36 }: P
 
   const handleBulkScoreSelect = useCallback(async (score: number) => {
     if (bulkMode) {
-      // In bulk mode, set the selected score and wait for juror clicks
       setBulkScore(prev => prev === score ? null : score);
     } else {
-      // Normal mode - save response for selected juror
       if (selectedJurorId && currentQuestion && !saving) {
         setSaving(true);
         try {
@@ -183,7 +184,6 @@ export default function ScaleModeClient({ caseId, caseName, venireSize = 36 }: P
 
           if (res.ok) {
             await res.json();
-            // Update local state with response from server
             setResponses(prev => {
               const newMap = new Map(prev);
               if (!newMap.has(currentQuestion.id)) {
@@ -194,16 +194,13 @@ export default function ScaleModeClient({ caseId, caseName, venireSize = 36 }: P
             });
 
             if (autoAdvance) {
-              // Find next non-struck, unscored juror
               const currentJurorIndex = jurors.findIndex(j => j.id === selectedJurorId);
               let nextJuror = null;
 
-              // Check which jurors have responses (including the one we just saved)
               const questionsResponses = responses.get(currentQuestion.id) ?? new Map();
               const allScoredJurors = new Set(questionsResponses.keys());
-              allScoredJurors.add(selectedJurorId); // Include the juror we just scored
+              allScoredJurors.add(selectedJurorId);
 
-              // Search forward from current position
               for (let i = currentJurorIndex + 1; i < jurors.length; i++) {
                 if (!struckJurors.has(jurors[i].id) && !allScoredJurors.has(jurors[i].id)) {
                   nextJuror = jurors[i];
@@ -211,7 +208,6 @@ export default function ScaleModeClient({ caseId, caseName, venireSize = 36 }: P
                 }
               }
 
-              // If not found after, wrap around to beginning
               if (!nextJuror) {
                 for (let i = 0; i <= currentJurorIndex; i++) {
                   if (!struckJurors.has(jurors[i].id) && !allScoredJurors.has(jurors[i].id)) {
@@ -237,13 +233,50 @@ export default function ScaleModeClient({ caseId, caseName, venireSize = 36 }: P
     }
   }, [bulkMode, selectedJurorId, currentQuestion, saving, autoAdvance, jurors, responses, struckJurors, caseId]);
 
+  // Keyboard shortcut: number keys 1-9 trigger score selection
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't fire if focus is in an input/textarea/select
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+
+      const digit = parseInt(e.key);
+      if (!isNaN(digit) && digit >= 1) {
+        if (currentQuestion?.type === 'YES_NO') {
+          // 1 = Yes, 2 = No for YES_NO questions
+          if (digit === 1) handleBulkScoreSelect(1);
+          else if (digit === 2) handleBulkScoreSelect(0);
+        } else if (digit <= scaleMax) {
+          handleBulkScoreSelect(digit);
+        }
+      }
+
+      // Backspace / Delete = undo score for selected juror
+      if ((e.key === 'Backspace' || e.key === 'Delete') && !bulkMode) {
+        handleUndoScore();
+      }
+
+      // Arrow keys = navigate questions
+      if (e.key === 'ArrowRight' && currentQuestionIndex < questions.length - 1) {
+        setCurrentQuestionIndex(i => i + 1);
+        setSelectedJurorId(null);
+      }
+      if (e.key === 'ArrowLeft' && currentQuestionIndex > 0) {
+        setCurrentQuestionIndex(i => i - 1);
+        setSelectedJurorId(null);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleBulkScoreSelect, handleUndoScore, currentQuestion, scaleMax, bulkMode, currentQuestionIndex, questions.length]);
+
   const handleBulkJurorClick = useCallback(async (jurorId: string) => {
     if (!bulkMode || bulkScore === null || !currentQuestion || saving) return;
 
-    // Check if this juror already has a response
     const existingScore = responses.get(currentQuestion.id)?.get(jurorId);
     if (existingScore !== undefined && existingScore !== null) {
-      return; // Skip if already scored
+      return;
     }
 
     setSaving(true);
@@ -262,7 +295,6 @@ export default function ScaleModeClient({ caseId, caseName, venireSize = 36 }: P
       });
 
       if (res.ok) {
-        // Update local state
         setResponses(prev => {
           const newMap = new Map(prev);
           if (!newMap.has(currentQuestion.id)) {
@@ -291,7 +323,6 @@ export default function ScaleModeClient({ caseId, caseName, venireSize = 36 }: P
       const questionResponses = responses.get(currentQuestion.id);
       if (!questionResponses) return;
 
-      // Delete each response for this question
       for (const jurorId of questionResponses.keys()) {
         await fetch('/api/responses', {
           method: 'DELETE',
@@ -304,7 +335,6 @@ export default function ScaleModeClient({ caseId, caseName, venireSize = 36 }: P
         });
       }
 
-      // Clear responses from local state
       setResponses(prev => {
         const newMap = new Map(prev);
         newMap.delete(currentQuestion.id);
@@ -334,13 +364,11 @@ export default function ScaleModeClient({ caseId, caseName, venireSize = 36 }: P
     const score = getResponseForJuror(jurorId);
     if (score === null) return 'bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600';
 
-    // For YES_NO questions, match the Yes/No button colors
     if (currentQuestion.type === 'YES_NO') {
-      if (score === 1) return 'bg-green-600 text-white'; // Yes = Green (matches Yes button)
-      if (score === 0) return 'bg-red-600 text-white';   // No = Red (matches No button)
+      if (score === 1) return 'bg-green-600 text-white';
+      if (score === 0) return 'bg-red-600 text-white';
     }
 
-    // For SCALED questions, use ratio-based coloring
     const max = scaleMax;
     const ratio = score / max;
     if (ratio >= 0.8) return 'bg-green-500 dark:bg-green-600 text-white';
@@ -362,8 +390,12 @@ export default function ScaleModeClient({ caseId, caseName, venireSize = 36 }: P
     return (
       <div className="p-6 dark:bg-slate-950 min-h-screen flex flex-col items-center justify-center">
         <BarChart3 className="w-16 h-16 text-slate-600 mb-4" />
-        <h2 className="text-2xl font-bold dark:text-white mb-2">No Scaled Questions</h2>
-        <p className="dark:text-slate-400 mb-6">Add scaled questions to your question bank first.</p>
+        <h2 className="text-2xl font-bold dark:text-white mb-2">
+          No {isDefense ? 'Defense' : 'Scaled'} Questions
+        </h2>
+        <p className="dark:text-slate-400 mb-6">
+          Add {isDefense ? 'defense' : 'scaled'} questions to the question bank first.
+        </p>
         <button
           onClick={() => router.push('/dashboard/questions')}
           className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-3 rounded-lg transition-colors"
@@ -374,10 +406,19 @@ export default function ScaleModeClient({ caseId, caseName, venireSize = 36 }: P
     );
   }
 
+  // Keyboard hint text for the current question
+  const keyboardHint = currentQuestion?.type === 'YES_NO'
+    ? '1=Yes, 2=No, ⌫=Undo, ←→=Nav'
+    : `1-${scaleMax}=Score, ⌫=Undo, ←→=Nav`;
+
   return (
     <div className="fixed inset-0 bg-slate-950 flex flex-col z-40">
       {/* Top Bar */}
-      <div className="flex items-center justify-between px-6 py-3 bg-slate-900 border-b border-slate-800">
+      <div className={`flex items-center justify-between px-6 py-3 border-b ${
+        isDefense
+          ? 'bg-purple-950 border-purple-800'
+          : 'bg-slate-900 border-slate-800'
+      }`}>
         <button
           onClick={() => router.back()}
           className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors touch-manipulation"
@@ -387,7 +428,14 @@ export default function ScaleModeClient({ caseId, caseName, venireSize = 36 }: P
         </button>
 
         <div className="text-center">
-          <p className="text-sm text-slate-400">{caseName}</p>
+          <p className="text-sm text-slate-400">
+            {caseName}
+            {isDefense && (
+              <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-purple-700 text-purple-200">
+                Defense
+              </span>
+            )}
+          </p>
           <p className="text-white font-semibold">
             Question {currentQuestionIndex + 1} of {questions.length}
           </p>
@@ -448,6 +496,8 @@ export default function ScaleModeClient({ caseId, caseName, venireSize = 36 }: P
           <h2 className="text-2xl font-bold text-white max-w-3xl mx-auto leading-relaxed">
             {currentQuestion?.text}
           </h2>
+          {/* Keyboard hint */}
+          <p className="text-xs text-slate-500 mt-2 font-mono">{keyboardHint}</p>
         </div>
 
         {/* Juror Grid + Score Panel */}
@@ -500,7 +550,7 @@ export default function ScaleModeClient({ caseId, caseName, venireSize = 36 }: P
                         setStruckJurors(prev => new Set([...prev, juror.id]));
                         if (selectedJurorId === juror.id) setSelectedJurorId(null);
                       }}
-                      title={bulkMode ? "Click to assign this score" : "Click to select, right-click or click X to mark as Struck/Excused"}
+                      title={bulkMode ? "Click to assign this score" : "Click to select, right-click to mark Struck/Excused"}
                       disabled={bulkMode && bulkScore !== null && score !== undefined && score !== null}
                       className={`relative p-3 rounded-lg text-center font-semibold transition-all touch-manipulation min-h-[70px] flex flex-col items-center justify-center group ${getJurorCellColor(juror.id)} ${
                         isSelected && !bulkMode
@@ -536,7 +586,7 @@ export default function ScaleModeClient({ caseId, caseName, venireSize = 36 }: P
                       )}
                       {score !== null && (
                         <div className="absolute bottom-0.5 right-1 text-[10px] font-bold opacity-80">
-                          {score}
+                          {currentQuestion?.type === 'YES_NO' ? (score === 1 ? 'Y' : 'N') : score}
                         </div>
                       )}
                     </button>
@@ -583,11 +633,11 @@ export default function ScaleModeClient({ caseId, caseName, venireSize = 36 }: P
           <div className="w-48 flex flex-col gap-3">
             {currentQuestion?.type === 'YES_NO' ? (
               <>
-                <p className="text-sm text-slate-400 text-center mb-1">{bulkMode ? 'Choose Answer' : 'Answer'}</p>
+                <p className="text-sm text-slate-400 text-center mb-1">{bulkMode ? 'Choose Answer' : 'Answer'} <span className="text-xs text-slate-600">(1/2)</span></p>
                 {[
-                  { label: 'Yes', value: true, color: 'bg-green-600 hover:bg-green-700' },
-                  { label: 'No', value: false, color: 'bg-red-600 hover:bg-red-700' },
-                ].map(({ label, value, color }) => {
+                  { label: 'Yes', value: true, color: 'bg-green-600 hover:bg-green-700', key: '1' },
+                  { label: 'No', value: false, color: 'bg-red-600 hover:bg-red-700', key: '2' },
+                ].map(({ label, value, color, key }) => {
                   const isCurrentAnswer = bulkMode
                     ? bulkScore === (value ? 1 : 0)
                     : selectedJurorId
@@ -603,29 +653,26 @@ export default function ScaleModeClient({ caseId, caseName, venireSize = 36 }: P
                         isCurrentAnswer ? 'ring-3 ring-white' : ''
                       }`}
                     >
-                      {label}
+                      <span className="text-xs opacity-70 mr-1">[{key}]</span>{label}
                     </button>
                   );
                 })}
 
-                {/* Undo Button (Normal Mode) */}
                 {!bulkMode && selectedJurorId && getResponseForJuror(selectedJurorId) !== null && (
                   <button
                     onClick={handleUndoScore}
                     disabled={saving}
                     className="mt-2 py-3 rounded-lg font-semibold bg-slate-700 hover:bg-slate-600 text-white transition-all touch-manipulation disabled:opacity-30 disabled:cursor-not-allowed border-2 border-slate-500"
-                    title="Remove the answer for this juror"
+                    title="Remove the answer for this juror (Backspace)"
                   >
                     ↶ Undo
                   </button>
                 )}
 
-                {/* Clear Bulk Answer Button */}
                 {bulkMode && bulkScore !== null && (
                   <button
                     onClick={() => setBulkScore(null)}
                     className="mt-2 py-3 rounded-lg font-semibold bg-slate-700 hover:bg-slate-600 text-white transition-all touch-manipulation border-2 border-slate-500"
-                    title="Clear selected bulk answer"
                   >
                     Clear Answer
                   </button>
@@ -633,7 +680,7 @@ export default function ScaleModeClient({ caseId, caseName, venireSize = 36 }: P
               </>
             ) : (
               <>
-                <p className="text-sm text-slate-400 text-center mb-1">{bulkMode ? 'Choose Score' : 'Score'}</p>
+                <p className="text-sm text-slate-400 text-center mb-1">{bulkMode ? 'Choose Score' : 'Score'} <span className="text-xs text-slate-600">(1-{scaleMax})</span></p>
                 {Array.from({ length: scaleMax }, (_, i) => i + 1).map((score) => {
                   const isCurrentScore = bulkMode
                     ? bulkScore === score
@@ -652,29 +699,26 @@ export default function ScaleModeClient({ caseId, caseName, venireSize = 36 }: P
                           : getScoreButtonColor(score, scaleMax)
                       }`}
                     >
-                      {score}
+                      <span className="text-xs opacity-70 mr-1">[{score}]</span>{score}
                     </button>
                   );
                 })}
 
-                {/* Undo Button (Normal Mode) */}
                 {!bulkMode && selectedJurorId && getResponseForJuror(selectedJurorId) !== null && (
                   <button
                     onClick={handleUndoScore}
                     disabled={saving}
                     className="mt-2 py-3 rounded-lg font-semibold bg-slate-700 hover:bg-slate-600 text-white transition-all touch-manipulation disabled:opacity-30 disabled:cursor-not-allowed border-2 border-slate-500"
-                    title="Remove the score for this juror"
+                    title="Remove the score for this juror (Backspace)"
                   >
                     ↶ Undo
                   </button>
                 )}
 
-                {/* Clear Bulk Score Button */}
                 {bulkMode && bulkScore !== null && (
                   <button
                     onClick={() => setBulkScore(null)}
                     className="mt-2 py-3 rounded-lg font-semibold bg-slate-700 hover:bg-slate-600 text-white transition-all touch-manipulation border-2 border-slate-500"
-                    title="Clear selected bulk score"
                   >
                     Clear Score
                   </button>

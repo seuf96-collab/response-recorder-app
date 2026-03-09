@@ -27,6 +27,7 @@ interface Question {
   caseId: string;
   text: string;
   type: 'SCALED' | 'OPEN_ENDED' | 'YES_NO';
+  side: 'STATE' | 'DEFENSE';
   scaleMax?: number | null;
   weight: number;
   category?: string | null;
@@ -52,6 +53,7 @@ const CATEGORIES = [
 
 export default function QuestionBankClient({ caseId, caseName }: Props) {
   const router = useRouter();
+  const [activeSide, setActiveSide] = useState<'STATE' | 'DEFENSE'>('STATE');
   const [questions, setQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
@@ -69,11 +71,12 @@ export default function QuestionBankClient({ caseId, caseName }: Props) {
 
   useEffect(() => {
     fetchQuestions();
-  }, [caseId]);
+  }, [caseId, activeSide]);
 
   const fetchQuestions = async () => {
+    setLoading(true);
     try {
-      const res = await fetch(`/api/questions?caseId=${caseId}`);
+      const res = await fetch(`/api/questions?caseId=${caseId}&side=${activeSide}`);
       if (res.ok) {
         const data = await res.json();
         setQuestions(data.questions ?? []);
@@ -104,6 +107,7 @@ export default function QuestionBankClient({ caseId, caseName }: Props) {
           caseId,
           text: formData.text,
           type: formData.type,
+          side: activeSide,
           scaleMax: formData.type === 'SCALED' ? formData.scaleMax : null,
           weight: formData.type === 'SCALED' ? formData.weight : 1,
           category: formData.category || null,
@@ -228,6 +232,7 @@ export default function QuestionBankClient({ caseId, caseName }: Props) {
   };
 
   const scaledQuestions = questions.filter(q => q.type === 'SCALED');
+  const isDefense = activeSide === 'DEFENSE';
 
   if (loading) {
     return (
@@ -263,7 +268,7 @@ export default function QuestionBankClient({ caseId, caseName }: Props) {
             <p className="text-lg dark:text-slate-400 text-slate-600 mt-1">{caseName}</p>
           </div>
           <div className="flex gap-3 flex-wrap">
-            {scaledQuestions.length > 0 && (
+            {activeSide === 'STATE' && scaledQuestions.length > 0 && (
               <button
                 onClick={handleRecalculateScores}
                 disabled={recalculating}
@@ -276,20 +281,26 @@ export default function QuestionBankClient({ caseId, caseName }: Props) {
             )}
             {scaledQuestions.length > 0 && (
               <button
-                onClick={() => router.push(`/dashboard/questions/scale-mode?caseId=${caseId}`)}
-                className="bg-amber-600 hover:bg-amber-700 text-white font-semibold px-5 py-3 rounded-lg flex items-center gap-2 transition-colors touch-manipulation"
+                onClick={() => router.push(`/dashboard/questions/scale-mode?caseId=${caseId}&side=${activeSide}`)}
+                className={`text-white font-semibold px-5 py-3 rounded-lg flex items-center gap-2 transition-colors touch-manipulation ${
+                  isDefense
+                    ? 'bg-purple-600 hover:bg-purple-700'
+                    : 'bg-amber-600 hover:bg-amber-700'
+                }`}
               >
                 <BarChart3 className="w-5 h-5" />
-                Scaled Question Mode
+                {isDefense ? 'Defense Scale Mode' : 'Scaled Question Mode'}
               </button>
             )}
-            <button
-              onClick={() => router.push(`/dashboard/questions/tracker?caseId=${caseId}`)}
-              className="bg-purple-600 hover:bg-purple-700 text-white font-semibold px-5 py-3 rounded-lg flex items-center gap-2 transition-colors touch-manipulation"
-            >
-              <MessageSquare className="w-5 h-5" />
-              Response Tracker
-            </button>
+            {activeSide === 'STATE' && (
+              <button
+                onClick={() => router.push(`/dashboard/questions/tracker?caseId=${caseId}`)}
+                className="bg-purple-600 hover:bg-purple-700 text-white font-semibold px-5 py-3 rounded-lg flex items-center gap-2 transition-colors touch-manipulation"
+              >
+                <MessageSquare className="w-5 h-5" />
+                Response Tracker
+              </button>
+            )}
             <button
               onClick={() => { resetForm(); setShowCreateDialog(true); }}
               className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-3 rounded-lg flex items-center gap-2 transition-colors touch-manipulation"
@@ -299,6 +310,30 @@ export default function QuestionBankClient({ caseId, caseName }: Props) {
             </button>
           </div>
         </div>
+      </div>
+
+      {/* State / Defense Tab Switcher */}
+      <div className="flex gap-1 mb-6 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg w-fit">
+        <button
+          onClick={() => setActiveSide('STATE')}
+          className={`px-6 py-2.5 rounded-md font-semibold text-sm transition-all ${
+            activeSide === 'STATE'
+              ? 'bg-amber-600 text-white shadow-sm'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+          }`}
+        >
+          State Questions
+        </button>
+        <button
+          onClick={() => setActiveSide('DEFENSE')}
+          className={`px-6 py-2.5 rounded-md font-semibold text-sm transition-all ${
+            activeSide === 'DEFENSE'
+              ? 'bg-purple-600 text-white shadow-sm'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+          }`}
+        >
+          Defense Questions
+        </button>
       </div>
 
       {/* Recalculate message */}
@@ -311,8 +346,10 @@ export default function QuestionBankClient({ caseId, caseName }: Props) {
 
       {/* Stats */}
       <div className="grid grid-cols-2 gap-4 mb-6">
-        <div className="bg-blue-900/30 border border-blue-700/50 rounded-lg p-4">
-          <p className="text-sm dark:text-blue-300 text-blue-700">Total Questions</p>
+        <div className={`border rounded-lg p-4 ${isDefense ? 'bg-purple-900/30 border-purple-700/50' : 'bg-blue-900/30 border-blue-700/50'}`}>
+          <p className={`text-sm ${isDefense ? 'dark:text-purple-300 text-purple-700' : 'dark:text-blue-300 text-blue-700'}`}>
+            {isDefense ? 'Defense' : 'State'} Questions
+          </p>
           <p className="text-3xl font-bold dark:text-white text-slate-900">{questions.length}</p>
         </div>
         <div className="bg-amber-900/30 border border-amber-700/50 rounded-lg p-4">
@@ -325,8 +362,12 @@ export default function QuestionBankClient({ caseId, caseName }: Props) {
       {questions.length === 0 ? (
         <div className="bg-slate-100 dark:bg-slate-800/50 rounded-lg p-12 text-center">
           <MessageSquare className="w-16 h-16 dark:text-slate-600 text-slate-300 mx-auto mb-4" />
-          <h3 className="text-xl font-semibold dark:text-slate-300 text-slate-700 mb-2">No questions yet</h3>
-          <p className="dark:text-slate-500 text-slate-500 mb-6">Add your first voir dire question to get started.</p>
+          <h3 className="text-xl font-semibold dark:text-slate-300 text-slate-700 mb-2">
+            No {isDefense ? 'defense' : 'state'} questions yet
+          </h3>
+          <p className="dark:text-slate-500 text-slate-500 mb-6">
+            Add {isDefense ? 'defense' : 'your first voir dire'} questions to get started.
+          </p>
           <button
             onClick={() => { resetForm(); setShowCreateDialog(true); }}
             className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-3 rounded-lg transition-colors"
@@ -417,9 +458,11 @@ export default function QuestionBankClient({ caseId, caseName }: Props) {
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
         <DialogContent className="dark:bg-slate-800 dark:border-slate-700 max-w-lg">
           <DialogHeader>
-            <DialogTitle className="dark:text-white">Add Question</DialogTitle>
+            <DialogTitle className="dark:text-white">
+              Add {isDefense ? 'Defense' : 'State'} Question
+            </DialogTitle>
             <DialogDescription className="dark:text-slate-400">
-              Create a new voir dire question for this case.
+              Create a new {isDefense ? 'defense' : 'voir dire'} question for this case.
             </DialogDescription>
           </DialogHeader>
 
@@ -535,7 +578,7 @@ export default function QuestionBankClient({ caseId, caseName }: Props) {
           <DialogHeader>
             <DialogTitle className="dark:text-white">Edit Question</DialogTitle>
             <DialogDescription className="dark:text-slate-400">
-              Update this voir dire question.
+              Update this {isDefense ? 'defense' : 'voir dire'} question.
             </DialogDescription>
           </DialogHeader>
 
