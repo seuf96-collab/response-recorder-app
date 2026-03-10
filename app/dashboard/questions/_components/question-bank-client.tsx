@@ -30,6 +30,7 @@ interface Question {
   side: 'STATE' | 'DEFENSE';
   scaleMax?: number | null;
   weight: number;
+  reverseValues?: boolean;
   category?: string | null;
   sortOrder: number;
   createdAt: string;
@@ -66,6 +67,7 @@ export default function QuestionBankClient({ caseId, caseName }: Props) {
     type: 'SCALED' as 'SCALED' | 'OPEN_ENDED' | 'YES_NO',
     scaleMax: 5,
     weight: 1,
+    reverseValues: false,
     category: '',
   });
 
@@ -89,7 +91,7 @@ export default function QuestionBankClient({ caseId, caseName }: Props) {
   };
 
   const resetForm = () => {
-    setFormData({ text: '', type: 'SCALED', scaleMax: 5, weight: 1, category: '' });
+    setFormData({ text: '', type: 'SCALED', scaleMax: 5, weight: 1, reverseValues: false, category: '' });
   };
 
   const handleCreate = async () => {
@@ -110,6 +112,7 @@ export default function QuestionBankClient({ caseId, caseName }: Props) {
           side: activeSide,
           scaleMax: formData.type === 'SCALED' ? formData.scaleMax : null,
           weight: formData.type === 'SCALED' ? formData.weight : 1,
+          reverseValues: (formData.type === 'SCALED' || formData.type === 'YES_NO') ? formData.reverseValues : false,
           category: formData.category || null,
           sortOrder: maxSortOrder + 1,
         }),
@@ -139,6 +142,7 @@ export default function QuestionBankClient({ caseId, caseName }: Props) {
           type: formData.type,
           scaleMax: formData.type === 'SCALED' ? formData.scaleMax : null,
           weight: formData.type === 'SCALED' ? formData.weight : 1,
+          reverseValues: (formData.type === 'SCALED' || formData.type === 'YES_NO') ? formData.reverseValues : false,
           category: formData.category || null,
         }),
       });
@@ -227,6 +231,7 @@ export default function QuestionBankClient({ caseId, caseName }: Props) {
       type: question.type,
       scaleMax: question.scaleMax ?? 5,
       weight: question.weight ?? 1,
+      reverseValues: question.reverseValues ?? false,
       category: question.category ?? '',
     });
   };
@@ -496,43 +501,81 @@ export default function QuestionBankClient({ caseId, caseName }: Props) {
             </div>
 
             {formData.type === 'SCALED' && (
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium dark:text-slate-300 text-slate-700 mb-2">
-                    Scale Max
-                  </label>
-                  <select
-                    value={formData.scaleMax}
-                    onChange={(e) => setFormData({ ...formData, scaleMax: parseInt(e.target.value) })}
-                    className="w-full px-4 py-2.5 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-slate-700 dark:text-white bg-white"
-                  >
-                    <option value={3}>1-3</option>
-                    <option value={4}>1-4</option>
-                    <option value={5}>1-5</option>
-                    <option value={6}>1-6</option>
-                    <option value={7}>1-7</option>
-                  </select>
-                </div>
+              <>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium dark:text-slate-300 text-slate-700 mb-2">
+                      Scale Max
+                    </label>
+                    <select
+                      value={formData.scaleMax}
+                      onChange={(e) => setFormData({ ...formData, scaleMax: parseInt(e.target.value) })}
+                      className="w-full px-4 py-2.5 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-slate-700 dark:text-white bg-white"
+                    >
+                      <option value={3}>1-3</option>
+                      <option value={4}>1-4</option>
+                      <option value={5}>1-5</option>
+                      <option value={6}>1-6</option>
+                      <option value={7}>1-7</option>
+                    </select>
+                  </div>
 
-                <div>
-                  <label className="block text-sm font-medium dark:text-slate-300 text-slate-700 mb-2">
-                    Weight
-                  </label>
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="range"
-                      min={1}
-                      max={5}
-                      value={formData.weight}
-                      onChange={(e) => setFormData({ ...formData, weight: parseInt(e.target.value) })}
-                      className="flex-1 h-2 bg-slate-200 dark:bg-slate-600 rounded-lg appearance-none cursor-pointer accent-blue-600"
-                    />
-                    <span className="text-sm font-semibold dark:text-white text-slate-900 min-w-[2rem]">
-                      {formData.weight}x
-                    </span>
+                  <div>
+                    <label className="block text-sm font-medium dark:text-slate-300 text-slate-700 mb-2">
+                      Weight
+                    </label>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="range"
+                        min={1}
+                        max={5}
+                        value={formData.weight}
+                        onChange={(e) => setFormData({ ...formData, weight: parseInt(e.target.value) })}
+                        className="flex-1 h-2 bg-slate-200 dark:bg-slate-600 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                      />
+                      <span className="text-sm font-semibold dark:text-white text-slate-900 min-w-[2rem]">
+                        {formData.weight}x
+                      </span>
+                    </div>
                   </div>
                 </div>
-              </div>
+
+                <label className="flex items-center gap-3 p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
+                  <input
+                    type="checkbox"
+                    checked={formData.reverseValues}
+                    onChange={(e) => setFormData({ ...formData, reverseValues: e.target.checked })}
+                    className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 text-amber-600 focus:ring-amber-500 cursor-pointer"
+                  />
+                  <div>
+                    <p className="text-sm font-medium dark:text-slate-300 text-slate-700">
+                      Reverse Values
+                    </p>
+                    <p className="text-xs dark:text-slate-400 text-slate-600">
+                      Treat 1 as most favorable and {formData.scaleMax} as least favorable
+                    </p>
+                  </div>
+                </label>
+              </>
+            )}
+
+            {formData.type === 'YES_NO' && (
+              <label className="flex items-center gap-3 p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-200 dark:border-purple-800">
+                <input
+                  type="checkbox"
+                  checked={formData.reverseValues}
+                  onChange={(e) => setFormData({ ...formData, reverseValues: e.target.checked })}
+                  className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 text-purple-600 focus:ring-purple-500 cursor-pointer"
+                />
+                <div>
+                  <p className="text-sm font-medium dark:text-slate-300 text-slate-700">
+                    Reverse Values
+                  </p>
+                  <p className="text-xs dark:text-slate-400 text-slate-600">
+                    Treat "Yes" as favorable (2) and "No" as unfavorable (1)
+                  </p>
+                </div>
+              </label>
             )}
 
             <div>
@@ -611,43 +654,81 @@ export default function QuestionBankClient({ caseId, caseName }: Props) {
             </div>
 
             {formData.type === 'SCALED' && (
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium dark:text-slate-300 text-slate-700 mb-2">
-                    Scale Max
-                  </label>
-                  <select
-                    value={formData.scaleMax}
-                    onChange={(e) => setFormData({ ...formData, scaleMax: parseInt(e.target.value) })}
-                    className="w-full px-4 py-2.5 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-slate-700 dark:text-white bg-white"
-                  >
-                    <option value={3}>1-3</option>
-                    <option value={4}>1-4</option>
-                    <option value={5}>1-5</option>
-                    <option value={6}>1-6</option>
-                    <option value={7}>1-7</option>
-                  </select>
-                </div>
+              <>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium dark:text-slate-300 text-slate-700 mb-2">
+                      Scale Max
+                    </label>
+                    <select
+                      value={formData.scaleMax}
+                      onChange={(e) => setFormData({ ...formData, scaleMax: parseInt(e.target.value) })}
+                      className="w-full px-4 py-2.5 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-slate-700 dark:text-white bg-white"
+                    >
+                      <option value={3}>1-3</option>
+                      <option value={4}>1-4</option>
+                      <option value={5}>1-5</option>
+                      <option value={6}>1-6</option>
+                      <option value={7}>1-7</option>
+                    </select>
+                  </div>
 
-                <div>
-                  <label className="block text-sm font-medium dark:text-slate-300 text-slate-700 mb-2">
-                    Weight
-                  </label>
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="range"
-                      min={1}
-                      max={5}
-                      value={formData.weight}
-                      onChange={(e) => setFormData({ ...formData, weight: parseInt(e.target.value) })}
-                      className="flex-1 h-2 bg-slate-200 dark:bg-slate-600 rounded-lg appearance-none cursor-pointer accent-blue-600"
-                    />
-                    <span className="text-sm font-semibold dark:text-white text-slate-900 min-w-[2rem]">
-                      {formData.weight}x
-                    </span>
+                  <div>
+                    <label className="block text-sm font-medium dark:text-slate-300 text-slate-700 mb-2">
+                      Weight
+                    </label>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="range"
+                        min={1}
+                        max={5}
+                        value={formData.weight}
+                        onChange={(e) => setFormData({ ...formData, weight: parseInt(e.target.value) })}
+                        className="flex-1 h-2 bg-slate-200 dark:bg-slate-600 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                      />
+                      <span className="text-sm font-semibold dark:text-white text-slate-900 min-w-[2rem]">
+                        {formData.weight}x
+                      </span>
+                    </div>
                   </div>
                 </div>
-              </div>
+
+                <label className="flex items-center gap-3 p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
+                  <input
+                    type="checkbox"
+                    checked={formData.reverseValues}
+                    onChange={(e) => setFormData({ ...formData, reverseValues: e.target.checked })}
+                    className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 text-amber-600 focus:ring-amber-500 cursor-pointer"
+                  />
+                  <div>
+                    <p className="text-sm font-medium dark:text-slate-300 text-slate-700">
+                      Reverse Values
+                    </p>
+                    <p className="text-xs dark:text-slate-400 text-slate-600">
+                      Treat 1 as most favorable and {formData.scaleMax} as least favorable
+                    </p>
+                  </div>
+                </label>
+              </>
+            )}
+
+            {formData.type === 'YES_NO' && (
+              <label className="flex items-center gap-3 p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-200 dark:border-purple-800">
+                <input
+                  type="checkbox"
+                  checked={formData.reverseValues}
+                  onChange={(e) => setFormData({ ...formData, reverseValues: e.target.checked })}
+                  className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 text-purple-600 focus:ring-purple-500 cursor-pointer"
+                />
+                <div>
+                  <p className="text-sm font-medium dark:text-slate-300 text-slate-700">
+                    Reverse Values
+                  </p>
+                  <p className="text-xs dark:text-slate-400 text-slate-600">
+                    Treat "Yes" as favorable (2) and "No" as unfavorable (1)
+                  </p>
+                </div>
+              </label>
             )}
 
             <div>

@@ -94,7 +94,7 @@ export async function POST(request: NextRequest) {
     await ensureDefaultCaseExists();
 
     const body = await request.json();
-    const { caseId, text, type, side, scaleMax, weight, category, sortOrder } = body;
+    const { caseId, text, type, side, scaleMax, weight, reverseValues, category, sortOrder } = body;
 
     if (!caseId || !text || !type) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -108,6 +108,7 @@ export async function POST(request: NextRequest) {
         side: side === 'DEFENSE' ? 'DEFENSE' : 'STATE',
         scaleMax: type === 'SCALED' ? (scaleMax || 5) : null,
         weight: type === 'SCALED' ? Math.min(Math.max(weight || 1, 1), 5) : 1,
+        reverseValues: (type === 'SCALED' || type === 'YES_NO') ? (reverseValues || false) : false,
         category,
         sortOrder: sortOrder || 0,
       },

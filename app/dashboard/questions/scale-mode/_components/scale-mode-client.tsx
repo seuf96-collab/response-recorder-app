@@ -439,7 +439,7 @@ export default function ScaleModeClient({ caseId, caseName, venireSize = 36, sid
           className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors touch-manipulation"
         >
           <X className="w-5 h-5" />
-          <span className="font-medium">Exit</span>
+          <span className="font-medium">Save and Exit</span>
         </button>
 
         <div className="text-center">

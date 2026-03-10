@@ -7,6 +7,7 @@ import { Scale, Calendar, FileText, Users } from 'lucide-react';
 export default function CreateCaseForm() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const [formData, setFormData] = useState({
     name: '',
     causeNumber: '',
@@ -19,11 +20,13 @@ export default function CreateCaseForm() {
     defenseStrikes: 10,
     stateAltStrikes: 1,
     defenseAltStrikes: 1,
+    venireSize: 36,
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setError('');
 
     try {
       const res = await fetch('/api/cases', {
@@ -33,10 +36,14 @@ export default function CreateCaseForm() {
       });
 
       if (res.ok) {
-        router.push('/dashboard');
+        router.push('/dashboard/cases');
+      } else {
+        const data = await res.json();
+        setError(data.error || 'Failed to create case');
       }
-    } catch (error) {
-      console.error('Failed to create case:', error);
+    } catch (err) {
+      console.error('Failed to create case:', err);
+      setError('An error occurred while creating the case');
     } finally {
       setLoading(false);
     }
@@ -44,6 +51,12 @@ export default function CreateCaseForm() {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6 dark:bg-slate-950 dark:text-white">
+      {error && (
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 px-4 py-3 rounded-lg">
+          {error}
+        </div>
+      )}
+
       <div>
         <label htmlFor="name" className="block text-sm font-medium dark:text-slate-300 mb-2">
           Case Name *
@@ -124,7 +137,7 @@ export default function CreateCaseForm() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-3 gap-4">
         <div>
           <label htmlFor="jurySize" className="block text-sm font-medium dark:text-slate-300 mb-2">
             Jury Size
@@ -148,6 +161,19 @@ export default function CreateCaseForm() {
             min="0"
             value={formData.numAlternates}
             onChange={(e) => setFormData({ ...formData, numAlternates: parseInt(e.target.value) })}
+            className="w-full px-4 py-3 border border-slate-300 dark:border-slate-600 rounded-lg dark:bg-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+        <div>
+          <label htmlFor="venireSize" className="block text-sm font-medium dark:text-slate-300 mb-2">
+            Venire Size
+          </label>
+          <input
+            id="venireSize"
+            type="number"
+            min="1"
+            value={formData.venireSize}
+            onChange={(e) => setFormData({ ...formData, venireSize: parseInt(e.target.value) })}
             className="w-full px-4 py-3 border border-slate-300 dark:border-slate-600 rounded-lg dark:bg-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>

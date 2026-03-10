@@ -2,7 +2,6 @@
 const nextConfig = {
   reactStrictMode: true,
   swcMinify: true,
-  output: 'standalone',
   webpack: (config) => {
     config.ignoreWarnings = [
       { module: /next\/font/ },

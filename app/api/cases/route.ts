@@ -3,32 +3,32 @@ import { prisma } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
-const DEFAULT_USER_ID = 'default-user';
-
-// Ensure default user exists
-async function ensureDefaultUser() {
-  const user = await prisma.user.findUnique({
-    where: { id: DEFAULT_USER_ID },
+// Get or create the default demo user
+async function getDefaultUserId(): Promise<string> {
+  let user = await prisma.user.findUnique({
+    where: { email: 'demo@example.com' },
   });
 
   if (!user) {
-    await prisma.user.create({
+    user = await prisma.user.create({
       data: {
-        id: DEFAULT_USER_ID,
-        email: 'default@response-recorder.local',
-        name: 'Default User',
-        password: '',
+        email: 'demo@example.com',
+        password: 'demo',
+        name: 'Demo User',
       },
     });
   }
 
-  return DEFAULT_USER_ID;
+  return user.id;
 }
 
 // GET all cases
 export async function GET(_request: NextRequest) {
   try {
+    const userId = await getDefaultUserId();
+
     const cases = await prisma.case.findMany({
+      where: { userId },
       orderBy: { createdAt: 'desc' },
       include: {
         _count: {
@@ -68,8 +68,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Case name is required' }, { status: 400 });
     }
 
-    // Ensure default user exists
-    const userId = await ensureDefaultUser();
+    const userId = await getDefaultUserId();
 
     const newCase = await prisma.case.create({
       data: {

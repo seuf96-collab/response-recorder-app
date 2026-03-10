@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start -p 3000",
-    "postinstall": "prisma generate && prisma migrate deploy || prisma db push --skip-generate || true",
+    "postinstall": "prisma generate",
     "lint": "next lint",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "test": "jest"

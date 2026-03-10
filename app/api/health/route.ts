@@ -5,14 +5,13 @@ export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
-    // Test database connection
-    const result = await prisma.$queryRaw`SELECT NOW() as current_time`;
+    // Test database connection with a simple query that works with both PostgreSQL and SQLite
+    await prisma.$queryRaw`SELECT 1`;
 
     return NextResponse.json({
       status: 'healthy',
       database: 'connected',
       timestamp: new Date().toISOString(),
-      databaseTime: result,
       environment: {
         nodeEnv: process.env.NODE_ENV,
         databaseUrlSet: !!process.env.DATABASE_URL,

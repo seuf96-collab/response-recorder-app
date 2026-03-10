@@ -36,10 +36,21 @@ export async function PATCH(
 ) {
   try {
     const body = await request.json();
+    const { text, type, scaleMax, weight, reverseValues, category, sortOrder } = body;
+
+    // Build update data, only including fields that were provided
+    const updateData: Record<string, any> = {};
+    if (text !== undefined) updateData.text = text;
+    if (type !== undefined) updateData.type = type;
+    if (scaleMax !== undefined) updateData.scaleMax = type === 'SCALED' ? scaleMax : null;
+    if (weight !== undefined) updateData.weight = type === 'SCALED' ? Math.min(Math.max(weight || 1, 1), 5) : 1;
+    if (reverseValues !== undefined) updateData.reverseValues = (type === 'SCALED' || type === 'YES_NO') ? reverseValues : false;
+    if (category !== undefined) updateData.category = category;
+    if (sortOrder !== undefined) updateData.sortOrder = sortOrder;
 
     const updatedQuestion = await prisma.question.update({
       where: { id: params.id },
-      data: body,
+      data: updateData,
     });
 
     return NextResponse.json({ question: updatedQuestion });

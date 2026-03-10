@@ -111,19 +111,20 @@ model JurorTag {
 
 // Questions for voir dire
 model Question {
-  id        String   @id @default(cuid())
-  caseId    String
-  case      Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
-  text      String
-  type      String
-  side      String   @default("STATE")
-  scaleMax  Int?
-  weight    Int      @default(1)
-  category  String?
-  sortOrder Int      @default(0)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  responses Response[]
+  id             String   @id @default(cuid())
+  caseId         String
+  case           Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  text           String
+  type           String
+  side           String   @default("STATE")
+  scaleMax       Int?
+  weight         Int      @default(1)
+  reverseValues  Boolean  @default(false)
+  category       String?
+  sortOrder      Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  responses      Response[]
 
   @@map("questions")
 }
