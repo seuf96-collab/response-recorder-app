@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { FolderOpen, Plus, Scale, X, Loader2 } from 'lucide-react';
+import { setSelectedCaseId } from '@/lib/use-selected-case';
 
 interface CaseItem {
   id: string;
@@ -15,6 +16,7 @@ interface CaseItem {
 }
 
 export default function CasesPage() {
+  const router = useRouter();
   const [cases, setCases] = useState<CaseItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -60,10 +62,11 @@ export default function CasesPage() {
       });
 
       if (res.ok) {
-        // Save to localStorage so the dashboard picks it up
-        localStorage.setItem('caseName', form.name);
-        localStorage.setItem('defendantName', form.defendantName);
-        localStorage.setItem('venireSize', form.venireSize.toString());
+        const data = await res.json();
+        // Select the newly created case
+        if (data.case?.id) {
+          setSelectedCaseId(data.case.id);
+        }
         setShowModal(false);
         setForm({ name: '', defendantName: '', venireSize: 85 });
         await loadCases();
@@ -118,10 +121,13 @@ export default function CasesPage() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {cases.map((c) => (
-            <Link
+            <button
               key={c.id}
-              href={`/dashboard?caseId=${c.id}`}
-              className="dark:bg-slate-800 bg-white rounded-lg shadow-md hover:shadow-xl transition-shadow p-6 border dark:border-slate-700 border-slate-200 hover:border-blue-300 dark:hover:border-blue-600"
+              onClick={() => {
+                setSelectedCaseId(c.id);
+                router.push('/dashboard');
+              }}
+              className="dark:bg-slate-800 bg-white rounded-lg shadow-md hover:shadow-xl transition-shadow p-6 border dark:border-slate-700 border-slate-200 hover:border-blue-300 dark:hover:border-blue-600 text-left"
             >
               <div className="flex items-start gap-3 mb-4">
                 <div className="bg-blue-900/30 dark:bg-blue-900/40 p-3 rounded-lg">
@@ -141,7 +147,7 @@ export default function CasesPage() {
                 <span className="font-semibold dark:text-white">{c.venireSize}</span> venire &middot;{' '}
                 <span className="font-semibold dark:text-white">{c._count?.jurors ?? 0}</span> jurors
               </div>
-            </Link>
+            </button>
           ))}
         </div>
       )}
